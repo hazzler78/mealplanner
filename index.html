@@ -222,9 +222,6 @@
             'Tofu curry': [['Tofu', 200, 'g'], ['Coconut milk', 1, 'can'], ['Curry powder', 2, 'tsp']]
         };
 
-        // Spoonacular API key (set via environment or config)
-        const API_KEY = 'YOUR_SPOONACULAR_API_KEY';
-
         // Helper function to shuffle array
         function shuffleArray(array) {
             const shuffled = [...array];
@@ -235,18 +232,8 @@
             return shuffled;
         }
 
-        // Fetch recipe from Spoonacular API (with fallback)
+        // Fetch recipe from Spoonacular API via serverless function (with fallback)
         async function fetchRecipe(mealName, preference) {
-            if (API_KEY === 'YOUR_SPOONACULAR_API_KEY') {
-                // Fallback: return basic info without API call
-                return {
-                    title: mealName,
-                    image: '',
-                    instructions: `Prepare ${mealName} according to your preference.`,
-                    ingredients: INGREDIENTS[mealName] || []
-                };
-            }
-
             try {
                 const dietMap = {
                     'Vegan': 'vegan',
@@ -254,11 +241,10 @@
                     'No restrictions': ''
                 };
                 const diet = dietMap[preference] || '';
-                const query = encodeURIComponent(mealName);
-                const dietParam = diet ? `&diet=${diet}` : '';
                 
+                // Call our serverless function which handles the API key securely
                 const response = await fetch(
-                    `https://api.spoonacular.com/recipes/complexSearch?query=${query}${dietParam}&apiKey=${API_KEY}&number=1&addRecipeInformation=true`
+                    `/api/recipe?query=${encodeURIComponent(mealName)}${diet ? `&diet=${diet}` : ''}`
                 );
                 
                 if (!response.ok) {
@@ -286,7 +272,7 @@
                 console.error('Error fetching recipe:', error);
             }
 
-            // Fallback
+            // Fallback: return basic info without API call
             return {
                 title: mealName,
                 image: '',

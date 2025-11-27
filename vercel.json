@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/recipe.js": {
+      "runtime": "nodejs18.x"
+    }
+  }
+}
+

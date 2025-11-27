@@ -1,0 +1,7 @@
+{
+  "name": "mealplanner-telegram-webapp",
+  "version": "1.0.0",
+  "description": "Telegram WebApp for meal planning",
+  "type": "module"
+}
+
