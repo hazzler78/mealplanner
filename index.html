@@ -630,18 +630,6 @@
                 fullRecipe: null
             };
         }
-            
-            return {
-                title: mealName,
-                originalMealName: mealName, // Store original name for ingredient matching
-                image: '',
-                instructions: basicInstructions[mealName] || `Prepare ${mealName} according to your preference:\n1. Gather all ingredients.\n2. Follow your favorite recipe.\n3. Cook until done.\n4. Serve and enjoy!`,
-                ingredients: (INGREDIENTS[mealName] || []).map(ing => 
-                    `${ing[1]} ${ing[2]} ${ing[0]}`
-                ),
-                fullRecipe: null
-            };
-        }
 
         // Show recipe modal
         function showRecipeModal(recipe) {
