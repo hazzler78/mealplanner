@@ -878,11 +878,12 @@
         // Load grocery list from CloudStorage or generate from plan
         async function loadGroceryList() {
             const saved = await CloudStorage.getItem('groceryList');
-            if (saved) {
+            if (saved && Array.isArray(saved)) {
                 return saved;
             }
             // Generate from meal plan if no saved list
-            return await generateGroceryListFromPlan();
+            const planItems = await generateGroceryListFromPlan();
+            return Array.isArray(planItems) ? planItems : [];
         }
 
         // Save grocery list to CloudStorage
@@ -895,7 +896,8 @@
             const groceryOutput = document.getElementById('grocery-output');
             const items = await loadGroceryList();
 
-            if (items.length === 0) {
+            // Ensure items is an array
+            if (!Array.isArray(items) || items.length === 0) {
                 groceryOutput.innerHTML = '<div class="grocery-list"><h2>Your Grocery List</h2><div class="grocery-empty">No items yet. Generate a meal plan or add items manually.</div></div>';
                 return;
             }
@@ -1019,32 +1021,46 @@
 
         // Generate grocery list button click handler
         document.getElementById('grocery-list').addEventListener('click', async () => {
-            const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
             const groceryOutput = document.getElementById('grocery-output');
-
-            if (!weeklyPlan) {
-                groceryOutput.innerHTML = '<div class="error">Please generate a meal plan first!</div>';
-                return;
+            
+            try {
+                // Check if there's a weekly plan
+                const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
+                
+                if (weeklyPlan && Array.isArray(weeklyPlan) && weeklyPlan.length > 0) {
+                    // Generate fresh list from plan (merge with existing manual items)
+                    const planItems = await generateGroceryListFromPlan();
+                    const existingItems = await loadGroceryList();
+                    
+                    // Keep manual items (those not from plan)
+                    const manualItems = Array.isArray(existingItems) 
+                        ? existingItems.filter(item => !item.id.startsWith('plan_'))
+                        : [];
+                    
+                    // Merge: plan items + manual items
+                    const mergedItems = [...planItems, ...manualItems];
+                    await saveGroceryList(mergedItems);
+                }
+                
+                // Always render the grocery list (even if no plan exists, show manual items)
+                await renderGroceryList();
+            } catch (error) {
+                console.error('Error loading grocery list:', error);
+                groceryOutput.innerHTML = `<div class="error">Error loading grocery list: ${error.message}</div>`;
             }
-
-            // Generate fresh list from plan (merge with existing manual items)
-            const planItems = await generateGroceryListFromPlan();
-            const existingItems = await loadGroceryList();
-            
-            // Keep manual items (those not from plan)
-            const manualItems = existingItems.filter(item => !item.id.startsWith('plan_'));
-            
-            // Merge: plan items + manual items
-            const mergedItems = [...planItems, ...manualItems];
-            await saveGroceryList(mergedItems);
-            
-            await renderGroceryList();
         });
 
         // Restore weekly plan on page load
         async function restoreWeeklyPlan() {
             const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
             const preference = await CloudStorage.getItem('preference');
+            const groceryList = await CloudStorage.getItem('groceryList');
+            
+            // Show grocery list button if there's a plan OR saved grocery list
+            if ((weeklyPlan && Array.isArray(weeklyPlan) && weeklyPlan.length > 0) || 
+                (groceryList && Array.isArray(groceryList) && groceryList.length > 0)) {
+                document.getElementById('grocery-list').style.display = 'block';
+            }
             
             // Validate weeklyPlan is an array
             if (!weeklyPlan || !Array.isArray(weeklyPlan) || weeklyPlan.length === 0) {
@@ -1055,9 +1071,6 @@
                 // Set preference dropdown (ensure it's a string)
                 const prefValue = typeof preference === 'string' ? preference : String(preference);
                 document.getElementById('preference').value = prefValue;
-                
-                // Show grocery list button
-                document.getElementById('grocery-list').style.display = 'block';
                 
                 // Re-render the plan
                 const planOutput = document.getElementById('plan-output');
