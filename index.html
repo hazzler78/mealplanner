@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MealPlanner TMA</title>
+    <script src="https://telegram.org/js/telegram-web-app.js?59"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        h2 {
+            margin: 20px 0 10px 0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--tg-theme-hint-color, #999);
+            border-radius: 8px;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            font-size: 16px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px 24px;
+            margin: 10px 0;
+            background: var(--tg-theme-button-color, #0088cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:active {
+            opacity: 0.8;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .meal-card {
+            border: 1px solid var(--tg-theme-hint-color, #ddd);
+            border-radius: 12px;
+            padding: 15px;
+            margin: 15px 0;
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+        }
+
+        .meal-card h3 {
+            margin-bottom: 10px;
+            color: var(--tg-theme-link-color, #0088cc);
+        }
+
+        .meal-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: var(--tg-theme-bg-color, #ffffff);
+            border-radius: 8px;
+        }
+
+        .meal-item h4 {
+            margin-bottom: 5px;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .recipe-info {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .recipe-info h5 {
+            margin: 10px 0 5px 0;
+        }
+
+        ul {
+            list-style-position: inside;
+            padding-left: 0;
+        }
+
+        li {
+            margin: 5px 0;
+        }
+
+        .grocery-list {
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            padding: 15px;
+            border-radius: 12px;
+            margin: 15px 0;
+        }
+
+        .grocery-item {
+            padding: 8px;
+            border-bottom: 1px solid var(--tg-theme-hint-color, #ddd);
+        }
+
+        .grocery-item:last-child {
+            border-bottom: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--tg-theme-hint-color, #999);
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        #plan-output, #grocery-output {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to MealPlanner!</h1>
+        
+        <div class="form-group">
+            <label for="preference">Select your diet preference:</label>
+            <select id="preference">
+                <option value="Vegan">Vegan</option>
+                <option value="Keto">Keto</option>
+                <option value="No restrictions" selected>No restrictions</option>
+            </select>
+        </div>
+
+        <button id="generate-plan">Generate Weekly Plan</button>
+        <div id="plan-output"></div>
+
+        <button id="grocery-list" style="display: none;">View Grocery List</button>
+        <div id="grocery-output"></div>
+    </div>
+
+    <script>
+        const WebApp = window.Telegram.WebApp;
+        WebApp.ready();
+        WebApp.expand();
+
+        // Port meal data from Python
+        const MEALS = {
+            'Vegan': {
+                'breakfast': ['Oatmeal with fruits', 'Avocado toast', 'Smoothie bowl'],
+                'lunch': ['Veggie stir-fry', 'Quinoa bowl'],
+                'dinner': ['Pasta primavera', 'Tofu curry']
+            },
+            'Keto': {
+                'breakfast': ['Avocado toast'],
+                'lunch': ['Grilled chicken salad'],
+                'dinner': ['Baked salmon']
+            },
+            'No restrictions': {
+                'breakfast': ['Oatmeal with fruits', 'Avocado toast', 'Smoothie bowl'],
+                'lunch': ['Grilled chicken salad', 'Veggie stir-fry', 'Quinoa bowl'],
+                'dinner': ['Baked salmon', 'Pasta primavera', 'Tofu curry']
+            }
+        };
+
+        // Port ingredient data from Python
+        const INGREDIENTS = {
+            'Oatmeal with fruits': [['Oats', 1, 'cup'], ['Banana', 1, ''], ['Apple', 1, '']],
+            'Avocado toast': [['Bread', 2, 'slices'], ['Avocado', 1, ''], ['Tomato', 1, '']],
+            'Smoothie bowl': [['Yogurt', 1, 'cup'], ['Berries', 0.5, 'cup'], ['Banana', 1, '']],
+            'Grilled chicken salad': [['Chicken', 200, 'g'], ['Lettuce', 1, 'head'], ['Tomato', 2, '']],
+            'Veggie stir-fry': [['Broccoli', 1, 'cup'], ['Carrot', 2, ''], ['Bell pepper', 1, '']],
+            'Quinoa bowl': [['Quinoa', 1, 'cup'], ['Avocado', 1, ''], ['Beans', 0.5, 'can']],
+            'Baked salmon': [['Salmon', 200, 'g'], ['Lemon', 1, ''], ['Herbs', 1, 'tbsp']],
+            'Pasta primavera': [['Pasta', 200, 'g'], ['Zucchini', 1, ''], ['Tomato', 2, '']],
+            'Tofu curry': [['Tofu', 200, 'g'], ['Coconut milk', 1, 'can'], ['Curry powder', 2, 'tsp']]
+        };
+
+        // Spoonacular API key (set via environment or config)
+        const API_KEY = 'YOUR_SPOONACULAR_API_KEY';
+
+        // Helper function to shuffle array
+        function shuffleArray(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        }
+
+        // Fetch recipe from Spoonacular API (with fallback)
+        async function fetchRecipe(mealName, preference) {
+            if (API_KEY === 'YOUR_SPOONACULAR_API_KEY') {
+                // Fallback: return basic info without API call
+                return {
+                    title: mealName,
+                    image: '',
+                    instructions: `Prepare ${mealName} according to your preference.`,
+                    ingredients: INGREDIENTS[mealName] || []
+                };
+            }
+
+            try {
+                const dietMap = {
+                    'Vegan': 'vegan',
+                    'Keto': 'ketogenic',
+                    'No restrictions': ''
+                };
+                const diet = dietMap[preference] || '';
+                const query = encodeURIComponent(mealName);
+                const dietParam = diet ? `&diet=${diet}` : '';
+                
+                const response = await fetch(
+                    `https://api.spoonacular.com/recipes/complexSearch?query=${query}${dietParam}&apiKey=${API_KEY}&number=1&addRecipeInformation=true`
+                );
+                
+                if (!response.ok) {
+                    throw new Error('API request failed');
+                }
+                
+                const data = await response.json();
+                
+                if (data.results && data.results.length > 0) {
+                    const recipe = data.results[0];
+                    return {
+                        title: recipe.title,
+                        image: recipe.image || '',
+                        instructions: recipe.instructions || `Prepare ${mealName}.`,
+                        ingredients: recipe.extendedIngredients 
+                            ? recipe.extendedIngredients.map(ing => 
+                                `${ing.amount} ${ing.unit} ${ing.name}`
+                            )
+                            : (INGREDIENTS[mealName] || []).map(ing => 
+                                `${ing[1]} ${ing[2]} ${ing[0]}`
+                            )
+                    };
+                }
+            } catch (error) {
+                console.error('Error fetching recipe:', error);
+            }
+
+            // Fallback
+            return {
+                title: mealName,
+                image: '',
+                instructions: `Prepare ${mealName} according to your preference.`,
+                ingredients: (INGREDIENTS[mealName] || []).map(ing => 
+                    `${ing[1]} ${ing[2]} ${ing[0]}`
+                )
+            };
+        }
+
+        // Generate weekly meal plan
+        document.getElementById('generate-plan').addEventListener('click', async () => {
+            const preference = document.getElementById('preference').value;
+            const planOutput = document.getElementById('plan-output');
+            const generateBtn = document.getElementById('generate-plan');
+            const groceryBtn = document.getElementById('grocery-list');
+
+            generateBtn.disabled = true;
+            planOutput.innerHTML = '<div class="loading">Generating your weekly plan...</div>';
+
+            try {
+                const mealPools = MEALS[preference] || MEALS['No restrictions'];
+                
+                // Shuffle options for variety (port from Python logic)
+                const breakfastOptions = shuffleArray([...mealPools.breakfast]);
+                const lunchOptions = shuffleArray([...mealPools.lunch]);
+                const dinnerOptions = shuffleArray([...mealPools.dinner]);
+
+                const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                const weeklyPlan = [];
+
+                planOutput.innerHTML = '<h2>Weekly Meal Plan</h2>';
+
+                for (let i = 0; i < 7; i++) {
+                    // Cycle through shuffled options for variety
+                    const breakfastName = breakfastOptions[i % breakfastOptions.length] || 'No breakfast options';
+                    const lunchName = lunchOptions[i % lunchOptions.length] || 'No lunch options';
+                    const dinnerName = dinnerOptions[i % dinnerOptions.length] || 'No dinner options';
+
+                    // Fetch recipe details (with images if API key is set)
+                    const [breakfast, lunch, dinner] = await Promise.all([
+                        fetchRecipe(breakfastName, preference),
+                        fetchRecipe(lunchName, preference),
+                        fetchRecipe(dinnerName, preference)
+                    ]);
+
+                    weeklyPlan.push({ breakfast, lunch, dinner });
+
+                    const dayDiv = document.createElement('div');
+                    dayDiv.classList.add('meal-card');
+                    dayDiv.innerHTML = `
+                        <h3>${days[i]}</h3>
+                        <div class="meal-item">
+                            <h4>Breakfast: ${breakfast.title}</h4>
+                            ${breakfast.image ? `<img src="${breakfast.image}" alt="${breakfast.title}">` : ''}
+                            <div class="recipe-info">
+                                <h5>Ingredients:</h5>
+                                <ul>${breakfast.ingredients.map(ing => `<li>${ing}</li>`).join('')}</ul>
+                            </div>
+                        </div>
+                        <div class="meal-item">
+                            <h4>Lunch: ${lunch.title}</h4>
+                            ${lunch.image ? `<img src="${lunch.image}" alt="${lunch.title}">` : ''}
+                            <div class="recipe-info">
+                                <h5>Ingredients:</h5>
+                                <ul>${lunch.ingredients.map(ing => `<li>${ing}</li>`).join('')}</ul>
+                            </div>
+                        </div>
+                        <div class="meal-item">
+                            <h4>Dinner: ${dinner.title}</h4>
+                            ${dinner.image ? `<img src="${dinner.image}" alt="${dinner.title}">` : ''}
+                            <div class="recipe-info">
+                                <h5>Ingredients:</h5>
+                                <ul>${dinner.ingredients.map(ing => `<li>${ing}</li>`).join('')}</ul>
+                            </div>
+                        </div>
+                    `;
+                    planOutput.appendChild(dayDiv);
+                }
+
+                // Store plan in localStorage
+                localStorage.setItem('weeklyPlan', JSON.stringify(weeklyPlan));
+                localStorage.setItem('preference', preference);
+                
+                // Show grocery list button
+                groceryBtn.style.display = 'block';
+                generateBtn.disabled = false;
+            } catch (error) {
+                planOutput.innerHTML = `<div class="error">Error generating plan: ${error.message}</div>`;
+                generateBtn.disabled = false;
+            }
+        });
+
+        // Generate grocery list
+        document.getElementById('grocery-list').addEventListener('click', () => {
+            const weeklyPlanStr = localStorage.getItem('weeklyPlan');
+            const groceryOutput = document.getElementById('grocery-output');
+
+            if (!weeklyPlanStr) {
+                groceryOutput.innerHTML = '<div class="error">Please generate a meal plan first!</div>';
+                return;
+            }
+
+            try {
+                const weeklyPlan = JSON.parse(weeklyPlanStr);
+                
+                // Aggregate ingredients (port logic from Python)
+                const aggregated = {};
+                
+                // Flatten all meals from weekly plan
+                const allMeals = [];
+                weeklyPlan.forEach(day => {
+                    allMeals.push(day.breakfast.title, day.lunch.title, day.dinner.title);
+                });
+
+                // Aggregate ingredients
+                allMeals.forEach(mealName => {
+                    if (INGREDIENTS[mealName]) {
+                        INGREDIENTS[mealName].forEach(([item, qty, unit]) => {
+                            const key = `${item}_${unit}`;
+                            if (!aggregated[key]) {
+                                aggregated[key] = { item, qty: 0, unit };
+                            }
+                            aggregated[key].qty += qty;
+                        });
+                    }
+                });
+
+                // Format and display
+                groceryOutput.innerHTML = '<div class="grocery-list"><h2>Your Weekly Grocery List</h2>';
+                
+                const groceryItems = Object.values(aggregated).sort((a, b) => 
+                    a.item.localeCompare(b.item)
+                );
+
+                groceryItems.forEach(({ item, qty, unit }) => {
+                    const unitStr = unit ? ` ${unit}` : '';
+                    const qtyStr = Number.isInteger(qty) ? qty : qty.toFixed(1);
+                    groceryOutput.innerHTML += `
+                        <div class="grocery-item">${item}: ${qtyStr}${unitStr}</div>
+                    `;
+                });
+
+                groceryOutput.innerHTML += '</div>';
+            } catch (error) {
+                groceryOutput.innerHTML = `<div class="error">Error generating grocery list: ${error.message}</div>`;
+            }
+        });
+
+        // Apply Telegram theme
+        if (WebApp.themeParams) {
+            if (WebApp.themeParams.bg_color) {
+                document.body.style.background = WebApp.themeParams.bg_color;
+            }
+            if (WebApp.themeParams.text_color) {
+                document.body.style.color = WebApp.themeParams.text_color;
+            }
+        }
+    </script>
+</body>
+</html>
+
