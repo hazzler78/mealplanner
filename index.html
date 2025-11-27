@@ -818,8 +818,8 @@
                 await CloudStorage.setItem('weeklyPlan', weeklyPlan);
                 await CloudStorage.setItem('preference', preference);
                 
-                // Also restore the plan display on page load
-                await restoreWeeklyPlan();
+                // Note: restoreWeeklyPlan is called on page load, not here
+                // The plan is already displayed above, so no need to restore
                 
                 // Show grocery list button
                 groceryBtn.style.display = 'block';
@@ -833,7 +833,9 @@
         // Generate grocery list from meal plan
         async function generateGroceryListFromPlan() {
             const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
-            if (!weeklyPlan) return [];
+            if (!weeklyPlan || !Array.isArray(weeklyPlan) || weeklyPlan.length === 0) {
+                return [];
+            }
 
             try {
                 
@@ -1044,7 +1046,12 @@
             const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
             const preference = await CloudStorage.getItem('preference');
             
-            if (weeklyPlan && preference) {
+            // Validate weeklyPlan is an array
+            if (!weeklyPlan || !Array.isArray(weeklyPlan) || weeklyPlan.length === 0) {
+                return; // No valid plan to restore
+            }
+            
+            if (preference) {
                 // Set preference dropdown (ensure it's a string)
                 const prefValue = typeof preference === 'string' ? preference : String(preference);
                 document.getElementById('preference').value = prefValue;
