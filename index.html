@@ -437,6 +437,32 @@
         WebApp.ready();
         WebApp.expand();
 
+        // Check if CloudStorage is actually usable (not just present)
+        let cloudStorageAvailable = null;
+        async function checkCloudStorageAvailability() {
+            if (cloudStorageAvailable !== null) {
+                return cloudStorageAvailable;
+            }
+            
+            if (!WebApp.CloudStorage) {
+                cloudStorageAvailable = false;
+                return false;
+            }
+            
+            // Try to use CloudStorage to see if it actually works
+            try {
+                // Try a test operation
+                await WebApp.CloudStorage.getItem('__test__');
+                cloudStorageAvailable = true;
+                return true;
+            } catch (error) {
+                // If it throws WebAppMethodUnsupported or similar, it's not available
+                console.log('CloudStorage test failed, will use localStorage:', error.message);
+                cloudStorageAvailable = false;
+                return false;
+            }
+        }
+
         // CloudStorage wrapper functions (persists data per user across sessions)
         const CloudStorage = {
             // Save data to Telegram CloudStorage
@@ -445,17 +471,20 @@
                     // Convert value to string (handle objects, arrays, and primitives)
                     const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
                     
-                    if (WebApp.CloudStorage) {
+                    // Check if CloudStorage is actually available
+                    const isAvailable = await checkCloudStorageAvailability();
+                    
+                    if (isAvailable) {
                         try {
                             await WebApp.CloudStorage.setItem(key, stringValue);
                             console.log(`Saved to CloudStorage: ${key}`);
                             return; // Success, exit early
                         } catch (cloudError) {
-                            // CloudStorage not supported (e.g., Telegram 6.0) or other error
-                            console.log(`CloudStorage not available for ${key}, using localStorage:`, cloudError.message);
+                            console.log(`CloudStorage error for ${key}, using localStorage:`, cloudError.message);
                             // Fall through to localStorage fallback
                         }
                     }
+                    
                     // Fallback to localStorage (for testing or unsupported Telegram versions)
                     localStorage.setItem(key, stringValue);
                     console.log(`Saved to localStorage: ${key}`);
@@ -476,13 +505,16 @@
                 try {
                     let value = null;
                     
+                    // Check if CloudStorage is actually available
+                    const isAvailable = await checkCloudStorageAvailability();
+                    
                     // Try CloudStorage first, but catch unsupported errors
-                    if (WebApp.CloudStorage) {
+                    if (isAvailable) {
                         try {
                             value = await WebApp.CloudStorage.getItem(key);
+                            console.log(`Loaded ${key} from CloudStorage`);
                         } catch (cloudError) {
-                            // CloudStorage not supported (e.g., Telegram 6.0) or other error
-                            console.log(`CloudStorage not available for ${key}, using localStorage:`, cloudError.message);
+                            console.log(`CloudStorage error for ${key}, using localStorage:`, cloudError.message);
                             // Fall through to localStorage fallback
                         }
                     }
@@ -490,17 +522,24 @@
                     // If CloudStorage didn't work or isn't available, use localStorage
                     if (!value) {
                         value = localStorage.getItem(key);
+                        if (value) {
+                            console.log(`Loaded ${key} from localStorage`);
+                        }
                     }
                     
                     if (!value) {
+                        console.log(`No value found for ${key}`);
                         return null;
                     }
                     
                     // Try to parse as JSON, if it fails return as string
                     try {
-                        return JSON.parse(value);
+                        const parsed = JSON.parse(value);
+                        console.log(`Parsed ${key} as JSON:`, parsed);
+                        return parsed;
                     } catch (e) {
                         // If parsing fails, return the string value as-is
+                        console.log(`Could not parse ${key} as JSON, returning as string`);
                         return value;
                     }
                 } catch (error) {
