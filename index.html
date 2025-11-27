@@ -898,7 +898,21 @@
 
             // Ensure items is an array
             if (!Array.isArray(items) || items.length === 0) {
-                groceryOutput.innerHTML = '<div class="grocery-list"><h2>Your Grocery List</h2><div class="grocery-empty">No items yet. Generate a meal plan or add items manually.</div></div>';
+                // Show empty state with add form
+                groceryOutput.innerHTML = `
+                    <div class="grocery-list">
+                        <h2>Your Grocery List</h2>
+                        <div class="add-item-form">
+                            <input type="text" class="add-item-input" id="new-item-name" placeholder="Item name" />
+                            <input type="text" class="add-item-input" id="new-item-qty" placeholder="Quantity (optional)" style="max-width: 100px;" />
+                            <input type="text" class="add-item-input" id="new-item-unit" placeholder="Unit (optional)" style="max-width: 100px;" />
+                            <button class="add-item-btn" id="add-item-btn">Add Item</button>
+                        </div>
+                        <div class="grocery-empty">No items yet. Generate a meal plan or add items manually above.</div>
+                    </div>
+                `;
+                // Attach event listeners even for empty list
+                attachGroceryListeners();
                 return;
             }
 
