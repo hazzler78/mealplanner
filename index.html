@@ -1051,24 +1051,42 @@
         // Generate grocery list button click handler
         document.getElementById('grocery-list').addEventListener('click', async () => {
             const groceryOutput = document.getElementById('grocery-output');
+            const groceryBtn = document.getElementById('grocery-list');
+            
+            console.log('Grocery list button clicked');
+            
+            // Show loading state
+            groceryOutput.innerHTML = '<div class="loading">Generating grocery list...</div>';
+            groceryBtn.disabled = true;
             
             try {
                 // Check if there's a weekly plan
                 const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
+                console.log('Weekly plan from storage:', weeklyPlan);
                 
                 if (weeklyPlan && Array.isArray(weeklyPlan) && weeklyPlan.length > 0) {
+                    console.log('Generating grocery list from plan...');
                     // Generate fresh list from plan (merge with existing manual items)
                     const planItems = await generateGroceryListFromPlan();
+                    console.log('Plan items generated:', planItems);
+                    
                     const existingItems = await loadGroceryList();
+                    console.log('Existing items:', existingItems);
                     
                     // Keep manual items (those not from plan)
                     const manualItems = Array.isArray(existingItems) 
                         ? existingItems.filter(item => !item.id.startsWith('plan_'))
                         : [];
                     
+                    console.log('Manual items:', manualItems);
+                    
                     // Merge: plan items + manual items
                     const mergedItems = [...planItems, ...manualItems];
+                    console.log('Merged items:', mergedItems);
+                    
                     await saveGroceryList(mergedItems);
+                } else {
+                    console.log('No weekly plan found, loading existing grocery list');
                 }
                 
                 // Always render the grocery list (even if no plan exists, show manual items)
@@ -1076,6 +1094,8 @@
             } catch (error) {
                 console.error('Error loading grocery list:', error);
                 groceryOutput.innerHTML = `<div class="error">Error loading grocery list: ${error.message}</div>`;
+            } finally {
+                groceryBtn.disabled = false;
             }
         });
 
