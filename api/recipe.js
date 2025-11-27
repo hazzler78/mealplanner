@@ -47,30 +47,42 @@ export default async function handler(req, res) {
         if (searchData.results && searchData.results.length > 0) {
             const recipeId = searchData.results[0].id;
             
-            // Fetch detailed recipe information with analyzed instructions
+            // Fetch detailed recipe information
             const detailUrl = `https://api.spoonacular.com/recipes/${recipeId}/information?apiKey=${apiKey}&includeNutrition=false`;
             const detailResponse = await fetch(detailUrl);
             
+            // Fetch analyzed instructions separately (step-by-step)
+            const analyzedUrl = `https://api.spoonacular.com/recipes/${recipeId}/analyzedInstructions?apiKey=${apiKey}`;
+            const analyzedResponse = await fetch(analyzedUrl);
+            
+            let detailData = {};
+            let analyzedInstructions = null;
+            
             if (detailResponse.ok) {
-                const detailData = await detailResponse.json();
-                
-                // Merge detailed info with search results
-                const mergedRecipe = {
-                    ...searchData.results[0],
-                    ...detailData,
-                    // Prefer detailed instructions if available
-                    instructions: detailData.instructions || detailData.analyzedInstructions || searchData.results[0].instructions,
-                    analyzedInstructions: detailData.analyzedInstructions || null,
-                    readyInMinutes: detailData.readyInMinutes || null,
-                    servings: detailData.servings || null,
-                    summary: detailData.summary || null
-                };
-                
-                return res.status(200).json({
-                    ...searchData,
-                    results: [mergedRecipe]
-                });
+                detailData = await detailResponse.json();
             }
+            
+            if (analyzedResponse.ok) {
+                const analyzedData = await analyzedResponse.json();
+                analyzedInstructions = analyzedData.length > 0 ? analyzedData : null;
+            }
+            
+            // Merge detailed info with search results
+            const mergedRecipe = {
+                ...searchData.results[0],
+                ...detailData,
+                // Prefer detailed instructions if available
+                instructions: detailData.instructions || searchData.results[0].instructions || '',
+                analyzedInstructions: analyzedInstructions,
+                readyInMinutes: detailData.readyInMinutes || null,
+                servings: detailData.servings || null,
+                summary: detailData.summary || null
+            };
+            
+            return res.status(200).json({
+                ...searchData,
+                results: [mergedRecipe]
+            });
         }
         
         // Return search results even if detail fetch fails

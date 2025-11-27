@@ -497,7 +497,7 @@
                 
                 if (data.results && data.results.length > 0) {
                     const recipe = data.results[0];
-                    return {
+                    const recipeData = {
                         title: recipe.title,
                         image: recipe.image || '',
                         instructions: recipe.instructions || `Prepare ${mealName}.`,
@@ -514,6 +514,8 @@
                             ),
                         fullRecipe: recipe // Store full recipe data for modal
                     };
+                    console.log('Recipe data fetched:', recipeData);
+                    return recipeData;
                 }
             } catch (error) {
                 console.error('Error fetching recipe:', error);
@@ -533,8 +535,14 @@
 
         // Show recipe modal
         function showRecipeModal(recipe) {
+            console.log('Showing recipe modal:', recipe);
             const modal = document.getElementById('recipe-modal');
             const modalBody = document.getElementById('recipe-modal-body');
+            
+            if (!recipe) {
+                console.error('No recipe data provided');
+                return;
+            }
             
             let html = `
                 <div class="recipe-modal-header">
@@ -566,26 +574,28 @@
             `;
             
             // Display step-by-step instructions if available
-            if (recipe.analyzedInstructions && recipe.analyzedInstructions.length > 0) {
+            if (recipe.analyzedInstructions && Array.isArray(recipe.analyzedInstructions) && recipe.analyzedInstructions.length > 0) {
                 html += '<div class="recipe-modal-section"><h3>Step-by-Step Instructions</h3>';
                 
                 recipe.analyzedInstructions.forEach(instructionSet => {
-                    instructionSet.steps.forEach((step, index) => {
-                        html += `
-                            <div class="recipe-step">
-                                <span class="recipe-step-number">Step ${step.number}:</span>
-                                <span class="recipe-step-text">${step.step}</span>
-                        `;
-                        
-                        if (step.equipment && step.equipment.length > 0) {
-                            html += '<div class="recipe-step-equipment">';
-                            html += '<strong>Equipment:</strong> ';
-                            html += step.equipment.map(eq => `<span>${eq.name}</span>`).join('');
+                    if (instructionSet.steps && Array.isArray(instructionSet.steps)) {
+                        instructionSet.steps.forEach((step) => {
+                            html += `
+                                <div class="recipe-step">
+                                    <span class="recipe-step-number">Step ${step.number}:</span>
+                                    <span class="recipe-step-text">${step.step}</span>
+                            `;
+                            
+                            if (step.equipment && Array.isArray(step.equipment) && step.equipment.length > 0) {
+                                html += '<div class="recipe-step-equipment">';
+                                html += '<strong>Equipment:</strong> ';
+                                html += step.equipment.map(eq => `<span>${eq.name || eq}</span>`).join('');
+                                html += '</div>';
+                            }
+                            
                             html += '</div>';
-                        }
-                        
-                        html += '</div>';
-                    });
+                        });
+                    }
                 });
                 
                 html += '</div>';
