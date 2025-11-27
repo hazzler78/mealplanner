@@ -498,16 +498,16 @@
                 if (data.results && data.results.length > 0) {
                     const recipe = data.results[0];
                     const recipeData = {
-                        title: recipe.title,
+                        title: recipe.title || mealName,
                         image: recipe.image || '',
                         instructions: recipe.instructions || `Prepare ${mealName}.`,
                         analyzedInstructions: recipe.analyzedInstructions || null,
                         readyInMinutes: recipe.readyInMinutes || null,
                         servings: recipe.servings || null,
                         summary: recipe.summary || null,
-                        ingredients: recipe.extendedIngredients 
+                        ingredients: recipe.extendedIngredients && recipe.extendedIngredients.length > 0
                             ? recipe.extendedIngredients.map(ing => 
-                                `${ing.amount} ${ing.unit} ${ing.name}`
+                                `${ing.amount || ''} ${ing.unit || ''} ${ing.name || ing.original || ''}`.trim()
                             )
                             : (INGREDIENTS[mealName] || []).map(ing => 
                                 `${ing[1]} ${ing[2]} ${ing[0]}`
@@ -515,6 +515,9 @@
                         fullRecipe: recipe // Store full recipe data for modal
                     };
                     console.log('Recipe data fetched:', recipeData);
+                    console.log('Has image:', !!recipeData.image);
+                    console.log('Has instructions:', !!recipeData.instructions);
+                    console.log('Has analyzedInstructions:', !!recipeData.analyzedInstructions);
                     return recipeData;
                 }
             } catch (error) {
@@ -574,8 +577,10 @@
             `;
             
             // Display step-by-step instructions if available
+            let hasInstructions = false;
             if (recipe.analyzedInstructions && Array.isArray(recipe.analyzedInstructions) && recipe.analyzedInstructions.length > 0) {
                 html += '<div class="recipe-modal-section"><h3>Step-by-Step Instructions</h3>';
+                hasInstructions = true;
                 
                 recipe.analyzedInstructions.forEach(instructionSet => {
                     if (instructionSet.steps && Array.isArray(instructionSet.steps)) {
@@ -599,15 +604,17 @@
                 });
                 
                 html += '</div>';
-            } else if (recipe.instructions && recipe.instructions.trim()) {
-                // Fallback to plain text instructions
+            }
+            
+            // Always show regular instructions as well (or as fallback)
+            if (recipe.instructions && recipe.instructions.trim() && !hasInstructions) {
                 html += `
                     <div class="recipe-modal-section">
                         <h3>Instructions</h3>
                         <div class="recipe-instructions">${recipe.instructions}</div>
                     </div>
                 `;
-            } else {
+            } else if (!hasInstructions) {
                 html += `
                     <div class="recipe-modal-section">
                         <h3>Instructions</h3>

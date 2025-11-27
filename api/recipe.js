@@ -68,15 +68,20 @@ export default async function handler(req, res) {
             }
             
             // Merge detailed info with search results
+            // Preserve image from search results if detail doesn't have one
             const mergedRecipe = {
                 ...searchData.results[0],
                 ...detailData,
+                // Preserve image from search if detail doesn't have one
+                image: detailData.image || searchData.results[0].image || '',
                 // Prefer detailed instructions if available
                 instructions: detailData.instructions || searchData.results[0].instructions || '',
                 analyzedInstructions: analyzedInstructions,
                 readyInMinutes: detailData.readyInMinutes || null,
                 servings: detailData.servings || null,
-                summary: detailData.summary || null
+                summary: detailData.summary || null,
+                // Ensure extendedIngredients are preserved
+                extendedIngredients: detailData.extendedIngredients || searchData.results[0].extendedIngredients || []
             };
             
             return res.status(200).json({
