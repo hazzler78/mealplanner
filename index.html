@@ -910,11 +910,15 @@
         // Load grocery list from CloudStorage or generate from plan
         async function loadGroceryList() {
             const saved = await CloudStorage.getItem('groceryList');
-            if (saved && Array.isArray(saved)) {
+            console.log('Loaded saved grocery list:', saved);
+            if (saved && Array.isArray(saved) && saved.length > 0) {
+                console.log('Returning saved grocery list with', saved.length, 'items');
                 return saved;
             }
             // Generate from meal plan if no saved list
+            console.log('No saved list, generating from plan...');
             const planItems = await generateGroceryListFromPlan();
+            console.log('Generated plan items:', planItems);
             return Array.isArray(planItems) ? planItems : [];
         }
 
