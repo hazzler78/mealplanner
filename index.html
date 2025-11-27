@@ -457,8 +457,10 @@
                 return cloudStorageAvailable;
             }
             
-            if (!WebApp.CloudStorage) {
+            // If not in Telegram, always use localStorage
+            if (!isTelegram || !WebApp || !WebApp.CloudStorage) {
                 cloudStorageAvailable = false;
+                console.log('Not in Telegram or CloudStorage not available, using localStorage');
                 return false;
             }
             
@@ -467,6 +469,7 @@
                 // Try a test operation
                 await WebApp.CloudStorage.getItem('__test__');
                 cloudStorageAvailable = true;
+                console.log('CloudStorage is available');
                 return true;
             } catch (error) {
                 // If it throws WebAppMethodUnsupported or similar, it's not available
