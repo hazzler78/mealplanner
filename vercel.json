@@ -1,8 +1,2 @@
-{
-  "functions": {
-    "api/recipe.js": {
-      "runtime": "@vercel/node"
-    }
-  }
-}
+{}
 
