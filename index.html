@@ -308,10 +308,13 @@
         }
 
         .grocery-checkbox {
-            width: 20px;
-            height: 20px;
+            width: 24px;
+            height: 24px;
             cursor: pointer;
             accent-color: var(--tg-theme-button-color, #0088cc);
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            flex-shrink: 0;
         }
 
         .grocery-item-text {
