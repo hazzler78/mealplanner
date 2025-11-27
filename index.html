@@ -433,9 +433,22 @@
     </div>
 
     <script>
-        const WebApp = window.Telegram.WebApp;
-        WebApp.ready();
-        WebApp.expand();
+        // Check if we're running in Telegram WebApp
+        const isTelegram = window.Telegram && window.Telegram.WebApp;
+        const WebApp = isTelegram ? window.Telegram.WebApp : null;
+        
+        // Initialize Telegram WebApp if available
+        if (WebApp) {
+            try {
+                WebApp.ready();
+                WebApp.expand();
+                console.log('Telegram WebApp initialized');
+            } catch (error) {
+                console.error('Error initializing Telegram WebApp:', error);
+            }
+        } else {
+            console.log('Not running in Telegram, using browser mode');
+        }
 
         // Check if CloudStorage is actually usable (not just present)
         let cloudStorageAvailable = null;
@@ -1334,7 +1347,7 @@
         });
 
         // Apply Telegram theme
-        if (WebApp.themeParams) {
+        if (WebApp && WebApp.themeParams) {
             if (WebApp.themeParams.bg_color) {
                 document.body.style.background = WebApp.themeParams.bg_color;
             }
@@ -1342,6 +1355,14 @@
                 document.body.style.color = WebApp.themeParams.text_color;
             }
         }
+        
+        // Log environment info for debugging
+        console.log('Environment:', {
+            isTelegram: isTelegram,
+            hasWebApp: !!WebApp,
+            userAgent: navigator.userAgent,
+            platform: navigator.platform
+        });
     </script>
 </body>
 </html>
