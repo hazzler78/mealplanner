@@ -138,12 +138,94 @@
         }
 
         .grocery-item {
-            padding: 8px;
+            padding: 12px;
             border-bottom: 1px solid var(--tg-theme-hint-color, #ddd);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: opacity 0.2s;
         }
 
         .grocery-item:last-child {
             border-bottom: none;
+        }
+
+        .grocery-item.completed {
+            opacity: 0.5;
+            text-decoration: line-through;
+        }
+
+        .grocery-item-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .grocery-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--tg-theme-button-color, #0088cc);
+        }
+
+        .grocery-item-text {
+            flex: 1;
+        }
+
+        .grocery-delete-btn {
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: opacity 0.2s;
+        }
+
+        .grocery-delete-btn:hover {
+            opacity: 0.8;
+        }
+
+        .add-item-form {
+            display: flex;
+            gap: 8px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+
+        .add-item-input {
+            flex: 1;
+            min-width: 150px;
+            padding: 10px;
+            border: 1px solid var(--tg-theme-hint-color, #999);
+            border-radius: 8px;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            font-size: 14px;
+        }
+
+        .add-item-btn {
+            padding: 10px 20px;
+            background: var(--tg-theme-button-color, #0088cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .add-item-btn:hover {
+            opacity: 0.9;
+        }
+
+        .grocery-empty {
+            text-align: center;
+            padding: 20px;
+            color: var(--tg-theme-hint-color, #999);
+            font-style: italic;
         }
 
         .loading {
@@ -366,15 +448,10 @@
             }
         });
 
-        // Generate grocery list
-        document.getElementById('grocery-list').addEventListener('click', () => {
+        // Generate grocery list from meal plan
+        function generateGroceryListFromPlan() {
             const weeklyPlanStr = localStorage.getItem('weeklyPlan');
-            const groceryOutput = document.getElementById('grocery-output');
-
-            if (!weeklyPlanStr) {
-                groceryOutput.innerHTML = '<div class="error">Please generate a meal plan first!</div>';
-                return;
-            }
+            if (!weeklyPlanStr) return [];
 
             try {
                 const weeklyPlan = JSON.parse(weeklyPlanStr);
@@ -401,25 +478,188 @@
                     }
                 });
 
-                // Format and display
-                groceryOutput.innerHTML = '<div class="grocery-list"><h2>Your Weekly Grocery List</h2>';
-                
-                const groceryItems = Object.values(aggregated).sort((a, b) => 
-                    a.item.localeCompare(b.item)
-                );
+                // Convert to array format with IDs
+                return Object.values(aggregated).map(({ item, qty, unit }, index) => ({
+                    id: `plan_${item}_${unit}_${index}`,
+                    item,
+                    qty,
+                    unit,
+                    completed: false
+                }));
+            } catch (error) {
+                console.error('Error generating grocery list:', error);
+                return [];
+            }
+        }
 
-                groceryItems.forEach(({ item, qty, unit }) => {
-                    const unitStr = unit ? ` ${unit}` : '';
-                    const qtyStr = Number.isInteger(qty) ? qty : qty.toFixed(1);
-                    groceryOutput.innerHTML += `
-                        <div class="grocery-item">${item}: ${qtyStr}${unitStr}</div>
-                    `;
+        // Load grocery list from localStorage or generate from plan
+        function loadGroceryList() {
+            const saved = localStorage.getItem('groceryList');
+            if (saved) {
+                try {
+                    return JSON.parse(saved);
+                } catch (e) {
+                    console.error('Error parsing saved grocery list:', e);
+                }
+            }
+            // Generate from meal plan if no saved list
+            return generateGroceryListFromPlan();
+        }
+
+        // Save grocery list to localStorage
+        function saveGroceryList(items) {
+            localStorage.setItem('groceryList', JSON.stringify(items));
+        }
+
+        // Render grocery list
+        function renderGroceryList() {
+            const groceryOutput = document.getElementById('grocery-output');
+            const items = loadGroceryList();
+
+            if (items.length === 0) {
+                groceryOutput.innerHTML = '<div class="grocery-list"><h2>Your Grocery List</h2><div class="grocery-empty">No items yet. Generate a meal plan or add items manually.</div></div>';
+                return;
+            }
+
+            // Sort: incomplete first, then alphabetically
+            const sortedItems = [...items].sort((a, b) => {
+                if (a.completed !== b.completed) {
+                    return a.completed ? 1 : -1;
+                }
+                return a.item.localeCompare(b.item);
+            });
+
+            let html = '<div class="grocery-list"><h2>Your Grocery List</h2>';
+            
+            // Add item form
+            html += `
+                <div class="add-item-form">
+                    <input type="text" class="add-item-input" id="new-item-name" placeholder="Item name" />
+                    <input type="text" class="add-item-input" id="new-item-qty" placeholder="Quantity (optional)" style="max-width: 100px;" />
+                    <input type="text" class="add-item-input" id="new-item-unit" placeholder="Unit (optional)" style="max-width: 100px;" />
+                    <button class="add-item-btn" id="add-item-btn">Add Item</button>
+                </div>
+            `;
+
+            // Render items
+            sortedItems.forEach(({ id, item, qty, unit, completed }) => {
+                const unitStr = unit ? ` ${unit}` : '';
+                const qtyStr = qty ? `: ${Number.isInteger(qty) ? qty : qty.toFixed(1)}${unitStr}` : '';
+                const completedClass = completed ? 'completed' : '';
+                
+                html += `
+                    <div class="grocery-item ${completedClass}" data-id="${id}">
+                        <div class="grocery-item-content">
+                            <input type="checkbox" class="grocery-checkbox" ${completed ? 'checked' : ''} />
+                            <span class="grocery-item-text">${item}${qtyStr}</span>
+                        </div>
+                        <button class="grocery-delete-btn" data-id="${id}">Delete</button>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            groceryOutput.innerHTML = html;
+
+            // Attach event listeners
+            attachGroceryListeners();
+        }
+
+        // Attach event listeners to grocery items
+        function attachGroceryListeners() {
+            // Checkbox listeners (toggle completed)
+            document.querySelectorAll('.grocery-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', (e) => {
+                    const itemId = e.target.closest('.grocery-item').dataset.id;
+                    const items = loadGroceryList();
+                    const item = items.find(i => i.id === itemId);
+                    if (item) {
+                        item.completed = e.target.checked;
+                        saveGroceryList(items);
+                        renderGroceryList();
+                    }
+                });
+            });
+
+            // Delete button listeners
+            document.querySelectorAll('.grocery-delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const itemId = e.target.dataset.id;
+                    const items = loadGroceryList();
+                    const filtered = items.filter(i => i.id !== itemId);
+                    saveGroceryList(filtered);
+                    renderGroceryList();
+                });
+            });
+
+            // Add item button listener
+            const addBtn = document.getElementById('add-item-btn');
+            const nameInput = document.getElementById('new-item-name');
+            const qtyInput = document.getElementById('new-item-qty');
+            const unitInput = document.getElementById('new-item-unit');
+
+            if (addBtn) {
+                addBtn.addEventListener('click', () => {
+                    const name = nameInput.value.trim();
+                    if (!name) return;
+
+                    const qty = qtyInput.value.trim() ? parseFloat(qtyInput.value) : null;
+                    const unit = unitInput.value.trim() || '';
+
+                    const items = loadGroceryList();
+                    const newId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    items.push({
+                        id: newId,
+                        item: name,
+                        qty: qty,
+                        unit: unit,
+                        completed: false
+                    });
+
+                    saveGroceryList(items);
+                    renderGroceryList();
+
+                    // Clear inputs
+                    nameInput.value = '';
+                    qtyInput.value = '';
+                    unitInput.value = '';
                 });
 
-                groceryOutput.innerHTML += '</div>';
-            } catch (error) {
-                groceryOutput.innerHTML = `<div class="error">Error generating grocery list: ${error.message}</div>`;
+                // Allow Enter key to add item
+                [nameInput, qtyInput, unitInput].forEach(input => {
+                    if (input) {
+                        input.addEventListener('keypress', (e) => {
+                            if (e.key === 'Enter') {
+                                addBtn.click();
+                            }
+                        });
+                    }
+                });
             }
+        }
+
+        // Generate grocery list button click handler
+        document.getElementById('grocery-list').addEventListener('click', () => {
+            const weeklyPlanStr = localStorage.getItem('weeklyPlan');
+            const groceryOutput = document.getElementById('grocery-output');
+
+            if (!weeklyPlanStr) {
+                groceryOutput.innerHTML = '<div class="error">Please generate a meal plan first!</div>';
+                return;
+            }
+
+            // Generate fresh list from plan (merge with existing manual items)
+            const planItems = generateGroceryListFromPlan();
+            const existingItems = loadGroceryList();
+            
+            // Keep manual items (those not from plan)
+            const manualItems = existingItems.filter(item => !item.id.startsWith('plan_'));
+            
+            // Merge: plan items + manual items
+            const mergedItems = [...planItems, ...manualItems];
+            saveGroceryList(mergedItems);
+            
+            renderGroceryList();
         });
 
         // Apply Telegram theme
