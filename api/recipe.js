@@ -38,7 +38,20 @@ export default async function handler(req, res) {
         
         if (!searchResponse.ok) {
             const errorText = await searchResponse.text();
-            throw new Error(`Spoonacular API error: ${searchResponse.status} - ${errorText}`);
+            // Handle API limit exceeded (402) gracefully - return empty results so frontend uses fallback
+            if (searchResponse.status === 402) {
+                console.log('Spoonacular API daily limit reached, returning empty results for fallback');
+                return res.status(200).json({
+                    results: [],
+                    apiLimitReached: true
+                });
+            }
+            // For other errors, also return empty results to trigger fallback
+            console.log(`Spoonacular API error ${searchResponse.status}, using fallback`);
+            return res.status(200).json({
+                results: [],
+                error: true
+            });
         }
 
         const searchData = await searchResponse.json();

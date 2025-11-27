@@ -495,7 +495,11 @@
                 
                 const data = await response.json();
                 
-                if (data.results && data.results.length > 0) {
+                // Check if API limit was reached or no results
+                if (data.apiLimitReached || !data.results || data.results.length === 0) {
+                    console.log('API limit reached or no results, using fallback data');
+                    // Fall through to fallback below
+                } else if (data.results && data.results.length > 0) {
                     const recipe = data.results[0];
                     const recipeData = {
                         title: recipe.title || mealName,
@@ -525,10 +529,23 @@
             }
 
             // Fallback: return basic info without API call
+            // Basic instructions for common meals
+            const basicInstructions = {
+                'Oatmeal with fruits': '1. Cook oats according to package directions.\n2. Slice banana and apple.\n3. Top oatmeal with fresh fruits.\n4. Serve warm.',
+                'Avocado toast': '1. Toast bread slices.\n2. Mash avocado and spread on toast.\n3. Slice tomato and place on top.\n4. Season with salt and pepper.',
+                'Smoothie bowl': '1. Blend yogurt, berries, and banana until smooth.\n2. Pour into a bowl.\n3. Top with additional fruits and granola.\n4. Serve chilled.',
+                'Grilled chicken salad': '1. Season and grill chicken until cooked through.\n2. Chop lettuce and tomatoes.\n3. Slice grilled chicken.\n4. Combine all ingredients in a bowl.\n5. Add your favorite dressing.',
+                'Veggie stir-fry': '1. Heat oil in a pan.\n2. Add chopped vegetables.\n3. Stir-fry for 5-7 minutes until tender.\n4. Season with soy sauce or your preferred seasoning.\n5. Serve hot.',
+                'Quinoa bowl': '1. Cook quinoa according to package directions.\n2. Slice avocado.\n3. Heat beans if desired.\n4. Layer quinoa, avocado, and beans in a bowl.\n5. Add your favorite toppings.',
+                'Baked salmon': '1. Preheat oven to 400°F.\n2. Place salmon on baking sheet.\n3. Season with herbs, lemon, salt, and pepper.\n4. Bake for 12-15 minutes.\n5. Serve with lemon wedges.',
+                'Pasta primavera': '1. Cook pasta according to package directions.\n2. Sauté zucchini and tomatoes in olive oil.\n3. Toss cooked pasta with vegetables.\n4. Season with salt, pepper, and herbs.\n5. Serve hot.',
+                'Tofu curry': '1. Press tofu to remove excess water.\n2. Cut tofu into cubes.\n3. Heat oil and sauté tofu until golden.\n4. Add curry powder and coconut milk.\n5. Simmer for 10-15 minutes.\n6. Serve over rice.'
+            };
+            
             return {
                 title: mealName,
                 image: '',
-                instructions: `Prepare ${mealName} according to your preference.`,
+                instructions: basicInstructions[mealName] || `Prepare ${mealName} according to your preference:\n1. Gather all ingredients.\n2. Follow your favorite recipe.\n3. Cook until done.\n4. Serve and enjoy!`,
                 ingredients: (INGREDIENTS[mealName] || []).map(ing => 
                     `${ing[1]} ${ing[2]} ${ing[0]}`
                 ),
