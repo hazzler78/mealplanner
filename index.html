@@ -99,10 +99,102 @@
             padding: 10px;
             background: var(--tg-theme-bg-color, #ffffff);
             border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .meal-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
 
         .meal-item h4 {
             margin-bottom: 5px;
+        }
+
+        /* Recipe Modal */
+        .recipe-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .recipe-modal.active {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .recipe-modal-content {
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            border-radius: 16px;
+            padding: 20px;
+            max-width: 600px;
+            width: 100%;
+            margin: 20px auto;
+            position: relative;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .recipe-modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            transition: opacity 0.2s;
+        }
+
+        .recipe-modal-close:hover {
+            opacity: 0.8;
+        }
+
+        .recipe-modal-header {
+            margin-bottom: 20px;
+            padding-right: 40px;
+        }
+
+        .recipe-modal-header h2 {
+            margin-bottom: 10px;
+        }
+
+        .recipe-modal-image {
+            width: 100%;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .recipe-modal-section {
+            margin-bottom: 20px;
+        }
+
+        .recipe-modal-section h3 {
+            margin-bottom: 10px;
+            color: var(--tg-theme-link-color, #0088cc);
+        }
+
+        .recipe-instructions {
+            white-space: pre-wrap;
+            line-height: 1.6;
         }
 
         img {
@@ -274,6 +366,14 @@
         <div id="grocery-output"></div>
     </div>
 
+    <!-- Recipe Modal -->
+    <div id="recipe-modal" class="recipe-modal">
+        <div class="recipe-modal-content">
+            <button class="recipe-modal-close" id="recipe-modal-close">×</button>
+            <div id="recipe-modal-body"></div>
+        </div>
+    </div>
+
     <script>
         const WebApp = window.Telegram.WebApp;
         WebApp.ready();
@@ -354,7 +454,8 @@
                             )
                             : (INGREDIENTS[mealName] || []).map(ing => 
                                 `${ing[1]} ${ing[2]} ${ing[0]}`
-                            )
+                            ),
+                        fullRecipe: recipe // Store full recipe data for modal
                     };
                 }
             } catch (error) {
@@ -368,8 +469,52 @@
                 instructions: `Prepare ${mealName} according to your preference.`,
                 ingredients: (INGREDIENTS[mealName] || []).map(ing => 
                     `${ing[1]} ${ing[2]} ${ing[0]}`
-                )
+                ),
+                fullRecipe: null
             };
+        }
+
+        // Show recipe modal
+        function showRecipeModal(recipe) {
+            const modal = document.getElementById('recipe-modal');
+            const modalBody = document.getElementById('recipe-modal-body');
+            
+            let html = `
+                <div class="recipe-modal-header">
+                    <h2>${recipe.title}</h2>
+                </div>
+            `;
+            
+            if (recipe.image) {
+                html += `<img src="${recipe.image}" alt="${recipe.title}" class="recipe-modal-image">`;
+            }
+            
+            html += `
+                <div class="recipe-modal-section">
+                    <h3>Ingredients</h3>
+                    <ul>${recipe.ingredients.map(ing => `<li>${ing}</li>`).join('')}</ul>
+                </div>
+            `;
+            
+            if (recipe.instructions && recipe.instructions.trim()) {
+                html += `
+                    <div class="recipe-modal-section">
+                        <h3>Instructions</h3>
+                        <div class="recipe-instructions">${recipe.instructions}</div>
+                    </div>
+                `;
+            }
+            
+            modalBody.innerHTML = html;
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        }
+
+        // Close recipe modal
+        function closeRecipeModal() {
+            const modal = document.getElementById('recipe-modal');
+            modal.classList.remove('active');
+            document.body.style.overflow = ''; // Restore scrolling
         }
 
         // Generate weekly meal plan
@@ -421,6 +566,7 @@
                                 <h5>Ingredients:</h5>
                                 <ul>${breakfast.ingredients.map(ing => `<li>${ing}</li>`).join('')}</ul>
                             </div>
+                            <p style="margin-top: 10px; color: var(--tg-theme-link-color, #0088cc); font-size: 14px;">👆 Tap to see full recipe</p>
                         </div>
                         <div class="meal-item">
                             <h4>Lunch: ${lunch.title}</h4>
@@ -429,6 +575,7 @@
                                 <h5>Ingredients:</h5>
                                 <ul>${lunch.ingredients.map(ing => `<li>${ing}</li>`).join('')}</ul>
                             </div>
+                            <p style="margin-top: 10px; color: var(--tg-theme-link-color, #0088cc); font-size: 14px;">👆 Tap to see full recipe</p>
                         </div>
                         <div class="meal-item">
                             <h4>Dinner: ${dinner.title}</h4>
@@ -437,9 +584,24 @@
                                 <h5>Ingredients:</h5>
                                 <ul>${dinner.ingredients.map(ing => `<li>${ing}</li>`).join('')}</ul>
                             </div>
+                            <p style="margin-top: 10px; color: var(--tg-theme-link-color, #0088cc); font-size: 14px;">👆 Tap to see full recipe</p>
                         </div>
                     `;
                     planOutput.appendChild(dayDiv);
+                    
+                    // Add click handlers to meal items and store recipe data
+                    const mealItems = dayDiv.querySelectorAll('.meal-item');
+                    mealItems[0].recipeData = breakfast;
+                    mealItems[1].recipeData = lunch;
+                    mealItems[2].recipeData = dinner;
+                    
+                    mealItems.forEach(item => {
+                        item.addEventListener('click', () => {
+                            if (item.recipeData) {
+                                showRecipeModal(item.recipeData);
+                            }
+                        });
+                    });
                 }
 
                 // Store plan in localStorage
@@ -667,6 +829,23 @@
             saveGroceryList(mergedItems);
             
             renderGroceryList();
+        });
+
+        // Modal close handlers
+        document.getElementById('recipe-modal-close').addEventListener('click', closeRecipeModal);
+        
+        // Close modal when clicking outside
+        document.getElementById('recipe-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'recipe-modal') {
+                closeRecipeModal();
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeRecipeModal();
+            }
         });
 
         // Apply Telegram theme
