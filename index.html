@@ -953,10 +953,17 @@
         // Render grocery list
         async function renderGroceryList() {
             const groceryOutput = document.getElementById('grocery-output');
+            console.log('renderGroceryList called');
+            
             const items = await loadGroceryList();
+            console.log('Items loaded in renderGroceryList:', items);
+            console.log('Items type:', typeof items);
+            console.log('Is array:', Array.isArray(items));
+            console.log('Items length:', items?.length);
 
             // Ensure items is an array
             if (!Array.isArray(items) || items.length === 0) {
+                console.log('No items to display, showing empty state');
                 // Show empty state with add form
                 groceryOutput.innerHTML = `
                     <div class="grocery-list">
@@ -974,6 +981,8 @@
                 attachGroceryListeners();
                 return;
             }
+            
+            console.log('Rendering', items.length, 'items');
 
             // Sort: incomplete first, then alphabetically
             const sortedItems = [...items].sort((a, b) => {
@@ -1143,9 +1152,11 @@
                     // Generate fresh list from plan (merge with existing manual items)
                     const planItems = await generateGroceryListFromPlan();
                     console.log('Plan items generated:', planItems);
+                    console.log('Plan items count:', planItems.length);
                     
                     const existingItems = await loadGroceryList();
                     console.log('Existing items:', existingItems);
+                    console.log('Existing items count:', existingItems?.length || 0);
                     
                     // Keep manual items (those not from plan)
                     const manualItems = Array.isArray(existingItems) 
@@ -1153,18 +1164,28 @@
                         : [];
                     
                     console.log('Manual items:', manualItems);
+                    console.log('Manual items count:', manualItems.length);
                     
                     // Merge: plan items + manual items
                     const mergedItems = [...planItems, ...manualItems];
                     console.log('Merged items:', mergedItems);
+                    console.log('Merged items count:', mergedItems.length);
                     
                     await saveGroceryList(mergedItems);
+                    console.log('Saved grocery list');
+                    
+                    // Verify it was saved
+                    const verifySaved = await CloudStorage.getItem('groceryList');
+                    console.log('Verified saved list:', verifySaved);
+                    console.log('Verified saved list count:', verifySaved?.length || 0);
                 } else {
                     console.log('No weekly plan found, loading existing grocery list');
                 }
                 
                 // Always render the grocery list (even if no plan exists, show manual items)
+                console.log('About to render grocery list...');
                 await renderGroceryList();
+                console.log('Grocery list rendered');
             } catch (error) {
                 console.error('Error loading grocery list:', error);
                 groceryOutput.innerHTML = `<div class="error">Error loading grocery list: ${error.message}</div>`;
