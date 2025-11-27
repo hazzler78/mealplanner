@@ -446,18 +446,28 @@
                     const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
                     
                     if (WebApp.CloudStorage) {
-                        await WebApp.CloudStorage.setItem(key, stringValue);
-                        console.log(`Saved to CloudStorage: ${key}`);
-                    } else {
-                        // Fallback to localStorage for testing outside Telegram
-                        localStorage.setItem(key, stringValue);
-                        console.log(`Saved to localStorage (fallback): ${key}`);
+                        try {
+                            await WebApp.CloudStorage.setItem(key, stringValue);
+                            console.log(`Saved to CloudStorage: ${key}`);
+                            return; // Success, exit early
+                        } catch (cloudError) {
+                            // CloudStorage not supported (e.g., Telegram 6.0) or other error
+                            console.log(`CloudStorage not available for ${key}, using localStorage:`, cloudError.message);
+                            // Fall through to localStorage fallback
+                        }
                     }
+                    // Fallback to localStorage (for testing or unsupported Telegram versions)
+                    localStorage.setItem(key, stringValue);
+                    console.log(`Saved to localStorage: ${key}`);
                 } catch (error) {
                     console.error(`Error saving ${key}:`, error);
-                    // Fallback to localStorage
-                    const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
-                    localStorage.setItem(key, stringValue);
+                    // Final fallback to localStorage
+                    try {
+                        const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+                        localStorage.setItem(key, stringValue);
+                    } catch (e) {
+                        console.error(`Failed to save ${key} to localStorage:`, e);
+                    }
                 }
             },
 
