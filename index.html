@@ -437,40 +437,58 @@
             // Save data to Telegram CloudStorage
             async setItem(key, value) {
                 try {
+                    // Convert value to string (handle objects, arrays, and primitives)
+                    const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+                    
                     if (WebApp.CloudStorage) {
-                        await WebApp.CloudStorage.setItem(key, JSON.stringify(value));
+                        await WebApp.CloudStorage.setItem(key, stringValue);
                         console.log(`Saved to CloudStorage: ${key}`);
                     } else {
                         // Fallback to localStorage for testing outside Telegram
-                        localStorage.setItem(key, JSON.stringify(value));
+                        localStorage.setItem(key, stringValue);
                         console.log(`Saved to localStorage (fallback): ${key}`);
                     }
                 } catch (error) {
                     console.error(`Error saving ${key}:`, error);
                     // Fallback to localStorage
-                    localStorage.setItem(key, JSON.stringify(value));
+                    const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+                    localStorage.setItem(key, stringValue);
                 }
             },
 
             // Load data from Telegram CloudStorage
             async getItem(key) {
                 try {
+                    let value = null;
+                    
                     if (WebApp.CloudStorage) {
-                        const value = await WebApp.CloudStorage.getItem(key);
-                        if (value) {
-                            return JSON.parse(value);
-                        }
-                        return null;
+                        value = await WebApp.CloudStorage.getItem(key);
                     } else {
                         // Fallback to localStorage for testing outside Telegram
-                        const value = localStorage.getItem(key);
-                        return value ? JSON.parse(value) : null;
+                        value = localStorage.getItem(key);
+                    }
+                    
+                    if (!value) {
+                        return null;
+                    }
+                    
+                    // Try to parse as JSON, if it fails return as string
+                    try {
+                        return JSON.parse(value);
+                    } catch (e) {
+                        // If parsing fails, return the string value as-is
+                        return value;
                     }
                 } catch (error) {
                     console.error(`Error loading ${key}:`, error);
                     // Fallback to localStorage
                     const value = localStorage.getItem(key);
-                    return value ? JSON.parse(value) : null;
+                    if (!value) return null;
+                    try {
+                        return JSON.parse(value);
+                    } catch (e) {
+                        return value;
+                    }
                 }
             },
 
@@ -1027,8 +1045,9 @@
             const preference = await CloudStorage.getItem('preference');
             
             if (weeklyPlan && preference) {
-                // Set preference dropdown
-                document.getElementById('preference').value = preference;
+                // Set preference dropdown (ensure it's a string)
+                const prefValue = typeof preference === 'string' ? preference : String(preference);
+                document.getElementById('preference').value = prefValue;
                 
                 // Show grocery list button
                 document.getElementById('grocery-list').style.display = 'block';
