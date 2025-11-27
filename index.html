@@ -476,10 +476,19 @@
                 try {
                     let value = null;
                     
+                    // Try CloudStorage first, but catch unsupported errors
                     if (WebApp.CloudStorage) {
-                        value = await WebApp.CloudStorage.getItem(key);
-                    } else {
-                        // Fallback to localStorage for testing outside Telegram
+                        try {
+                            value = await WebApp.CloudStorage.getItem(key);
+                        } catch (cloudError) {
+                            // CloudStorage not supported (e.g., Telegram 6.0) or other error
+                            console.log(`CloudStorage not available for ${key}, using localStorage:`, cloudError.message);
+                            // Fall through to localStorage fallback
+                        }
+                    }
+                    
+                    // If CloudStorage didn't work or isn't available, use localStorage
+                    if (!value) {
                         value = localStorage.getItem(key);
                     }
                     
@@ -496,13 +505,17 @@
                     }
                 } catch (error) {
                     console.error(`Error loading ${key}:`, error);
-                    // Fallback to localStorage
-                    const value = localStorage.getItem(key);
-                    if (!value) return null;
+                    // Final fallback to localStorage
                     try {
-                        return JSON.parse(value);
+                        const value = localStorage.getItem(key);
+                        if (!value) return null;
+                        try {
+                            return JSON.parse(value);
+                        } catch (e) {
+                            return value;
+                        }
                     } catch (e) {
-                        return value;
+                        return null;
                     }
                 }
             },
