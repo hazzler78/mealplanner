@@ -975,76 +975,85 @@
             attachGroceryListeners();
         }
 
-        // Attach event listeners to grocery items
+        // Attach event listeners to grocery items using event delegation
+        // This ensures listeners work even after DOM is replaced
+        let groceryListenersAttached = false;
+        
         function attachGroceryListeners() {
-            // Checkbox listeners (toggle completed)
-            document.querySelectorAll('.grocery-checkbox').forEach(checkbox => {
-                checkbox.addEventListener('change', async (e) => {
-                    const itemId = e.target.closest('.grocery-item').dataset.id;
-                    const items = await loadGroceryList();
-                    const item = items.find(i => i.id === itemId);
-                    if (item) {
-                        item.completed = e.target.checked;
-                        await saveGroceryList(items);
+            const groceryOutput = document.getElementById('grocery-output');
+            
+            // Only attach once using event delegation
+            if (!groceryListenersAttached) {
+                // Use event delegation for checkboxes and delete buttons
+                groceryOutput.addEventListener('change', async (e) => {
+                    if (e.target.classList.contains('grocery-checkbox')) {
+                        const itemId = e.target.closest('.grocery-item').dataset.id;
+                        const items = await loadGroceryList();
+                        const item = items.find(i => i.id === itemId);
+                        if (item) {
+                            item.completed = e.target.checked;
+                            await saveGroceryList(items);
+                            await renderGroceryList();
+                        }
+                    }
+                });
+
+                groceryOutput.addEventListener('click', async (e) => {
+                    // Handle delete button clicks
+                    if (e.target.classList.contains('grocery-delete-btn') || e.target.closest('.grocery-delete-btn')) {
+                        const deleteBtn = e.target.classList.contains('grocery-delete-btn') 
+                            ? e.target 
+                            : e.target.closest('.grocery-delete-btn');
+                        const itemId = deleteBtn.dataset.id;
+                        const items = await loadGroceryList();
+                        const filtered = items.filter(i => i.id !== itemId);
+                        await saveGroceryList(filtered);
                         await renderGroceryList();
                     }
-                });
-            });
+                    
+                    // Handle add item button
+                    if (e.target.id === 'add-item-btn' || e.target.closest('#add-item-btn')) {
+                        const nameInput = document.getElementById('new-item-name');
+                        const qtyInput = document.getElementById('new-item-qty');
+                        const unitInput = document.getElementById('new-item-unit');
+                        
+                        const name = nameInput.value.trim();
+                        if (!name) return;
 
-            // Delete button listeners
-            document.querySelectorAll('.grocery-delete-btn').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const itemId = e.target.dataset.id;
-                    const items = await loadGroceryList();
-                    const filtered = items.filter(i => i.id !== itemId);
-                    await saveGroceryList(filtered);
-                    await renderGroceryList();
-                });
-            });
+                        const qty = qtyInput.value.trim() ? parseFloat(qtyInput.value) : null;
+                        const unit = unitInput.value.trim() || '';
 
-            // Add item button listener
-            const addBtn = document.getElementById('add-item-btn');
-            const nameInput = document.getElementById('new-item-name');
-            const qtyInput = document.getElementById('new-item-qty');
-            const unitInput = document.getElementById('new-item-unit');
-
-            if (addBtn) {
-                addBtn.addEventListener('click', async () => {
-                    const name = nameInput.value.trim();
-                    if (!name) return;
-
-                    const qty = qtyInput.value.trim() ? parseFloat(qtyInput.value) : null;
-                    const unit = unitInput.value.trim() || '';
-
-                    const items = await loadGroceryList();
-                    const newId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                    items.push({
-                        id: newId,
-                        item: name,
-                        qty: qty,
-                        unit: unit,
-                        completed: false
-                    });
-
-                    await saveGroceryList(items);
-                    await renderGroceryList();
-
-                    // Clear inputs
-                    nameInput.value = '';
-                    qtyInput.value = '';
-                    unitInput.value = '';
-                });
-
-                // Allow Enter key to add item
-                [nameInput, qtyInput, unitInput].forEach(input => {
-                    if (input) {
-                        input.addEventListener('keypress', (e) => {
-                            if (e.key === 'Enter') {
-                                addBtn.click();
-                            }
+                        const items = await loadGroceryList();
+                        const newId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                        items.push({
+                            id: newId,
+                            item: name,
+                            qty: qty,
+                            unit: unit,
+                            completed: false
                         });
+
+                        await saveGroceryList(items);
+                        await renderGroceryList();
+
+                        // Clear inputs
+                        nameInput.value = '';
+                        qtyInput.value = '';
+                        unitInput.value = '';
                     }
                 });
+
+                // Handle Enter key for add item inputs
+                groceryOutput.addEventListener('keypress', async (e) => {
+                    if ((e.target.id === 'new-item-name' || e.target.id === 'new-item-qty' || e.target.id === 'new-item-unit') && e.key === 'Enter') {
+                        const addBtn = document.getElementById('add-item-btn');
+                        if (addBtn) {
+                            addBtn.click();
+                        }
+                    }
+                });
+                
+                groceryListenersAttached = true;
             }
         }
 
