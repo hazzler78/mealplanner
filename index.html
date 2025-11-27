@@ -573,7 +573,7 @@
                 // Check if API limit was reached or no results
                 if (data.apiLimitReached || !data.results || data.results.length === 0) {
                     console.log('API limit reached or no results, using fallback data');
-                    // Fall through to fallback below
+                    // Don't return here - fall through to fallback below
                 } else if (data.results && data.results.length > 0) {
                     const recipe = data.results[0];
                     const recipeData = {
@@ -605,20 +605,8 @@
             }
 
             // Fallback: return basic info without API call
-            return {
-                title: mealName,
-                originalMealName: mealName, // Store original name for ingredient matching
-                image: '',
-                instructions: `Prepare ${mealName} according to your preference.`,
-                ingredients: (INGREDIENTS[mealName] || []).map(ing => 
-                    `${ing[1]} ${ing[2]} ${ing[0]}`
-                ),
-                fullRecipe: null
-            };
-        }
-
-        // Basic instructions for common meals (for display in modal)
-        const basicInstructions = {
+            // Basic instructions for common meals
+            const basicInstructions = {
                 'Oatmeal with fruits': '1. Cook oats according to package directions.\n2. Slice banana and apple.\n3. Top oatmeal with fresh fruits.\n4. Serve warm.',
                 'Avocado toast': '1. Toast bread slices.\n2. Mash avocado and spread on toast.\n3. Slice tomato and place on top.\n4. Season with salt and pepper.',
                 'Smoothie bowl': '1. Blend yogurt, berries, and banana until smooth.\n2. Pour into a bowl.\n3. Top with additional fruits and granola.\n4. Serve chilled.',
@@ -629,6 +617,19 @@
                 'Pasta primavera': '1. Cook pasta according to package directions.\n2. Sauté zucchini and tomatoes in olive oil.\n3. Toss cooked pasta with vegetables.\n4. Season with salt, pepper, and herbs.\n5. Serve hot.',
                 'Tofu curry': '1. Press tofu to remove excess water.\n2. Cut tofu into cubes.\n3. Heat oil and sauté tofu until golden.\n4. Add curry powder and coconut milk.\n5. Simmer for 10-15 minutes.\n6. Serve over rice.'
             };
+            
+            console.log('Using fallback data for:', mealName);
+            return {
+                title: mealName,
+                originalMealName: mealName, // Store original name for ingredient matching
+                image: '',
+                instructions: basicInstructions[mealName] || `Prepare ${mealName} according to your preference:\n1. Gather all ingredients.\n2. Follow your favorite recipe.\n3. Cook until done.\n4. Serve and enjoy!`,
+                ingredients: (INGREDIENTS[mealName] || []).map(ing => 
+                    `${ing[1]} ${ing[2]} ${ing[0]}`
+                ),
+                fullRecipe: null
+            };
+        }
             
             return {
                 title: mealName,
