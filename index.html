@@ -328,12 +328,14 @@
             font-size: 12px;
             transition: opacity 0.2s;
             min-width: auto;
-            width: 24px;
-            height: 24px;
+            width: 32px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
             line-height: 1;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
         }
 
         .grocery-delete-btn:hover {
@@ -977,6 +979,7 @@
 
         // Attach event listeners to grocery items using event delegation
         // This ensures listeners work even after DOM is replaced
+        // Works on both desktop and mobile
         let groceryListenersAttached = false;
         
         function attachGroceryListeners() {
@@ -984,10 +987,14 @@
             
             // Only attach once using event delegation
             if (!groceryListenersAttached) {
-                // Use event delegation for checkboxes and delete buttons
+                // Use event delegation for checkboxes - works on mobile and desktop
                 groceryOutput.addEventListener('change', async (e) => {
                     if (e.target.classList.contains('grocery-checkbox')) {
-                        const itemId = e.target.closest('.grocery-item').dataset.id;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const itemId = e.target.closest('.grocery-item')?.dataset.id;
+                        if (!itemId) return;
+                        
                         const items = await loadGroceryList();
                         const item = items.find(i => i.id === itemId);
                         if (item) {
@@ -998,24 +1005,34 @@
                     }
                 });
 
-                groceryOutput.addEventListener('click', async (e) => {
+                // Handle both click and touchstart for mobile compatibility
+                const handleGroceryClick = async (e) => {
                     // Handle delete button clicks
-                    if (e.target.classList.contains('grocery-delete-btn') || e.target.closest('.grocery-delete-btn')) {
-                        const deleteBtn = e.target.classList.contains('grocery-delete-btn') 
-                            ? e.target 
-                            : e.target.closest('.grocery-delete-btn');
+                    const deleteBtn = e.target.closest('.grocery-delete-btn');
+                    if (deleteBtn) {
+                        e.preventDefault();
+                        e.stopPropagation();
                         const itemId = deleteBtn.dataset.id;
+                        if (!itemId) return;
+                        
                         const items = await loadGroceryList();
                         const filtered = items.filter(i => i.id !== itemId);
                         await saveGroceryList(filtered);
                         await renderGroceryList();
+                        return;
                     }
                     
                     // Handle add item button
-                    if (e.target.id === 'add-item-btn' || e.target.closest('#add-item-btn')) {
+                    const addBtn = e.target.closest('#add-item-btn');
+                    if (addBtn) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
                         const nameInput = document.getElementById('new-item-name');
                         const qtyInput = document.getElementById('new-item-qty');
                         const unitInput = document.getElementById('new-item-unit');
+                        
+                        if (!nameInput) return;
                         
                         const name = nameInput.value.trim();
                         if (!name) return;
@@ -1040,12 +1057,18 @@
                         nameInput.value = '';
                         qtyInput.value = '';
                         unitInput.value = '';
+                        return;
                     }
-                });
+                };
+                
+                // Add both click and touchstart for mobile compatibility
+                groceryOutput.addEventListener('click', handleGroceryClick);
+                groceryOutput.addEventListener('touchend', handleGroceryClick);
 
                 // Handle Enter key for add item inputs
                 groceryOutput.addEventListener('keypress', async (e) => {
                     if ((e.target.id === 'new-item-name' || e.target.id === 'new-item-qty' || e.target.id === 'new-item-unit') && e.key === 'Enter') {
+                        e.preventDefault();
                         const addBtn = document.getElementById('add-item-btn');
                         if (addBtn) {
                             addBtn.click();
