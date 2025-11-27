@@ -578,6 +578,7 @@
                     const recipe = data.results[0];
                     const recipeData = {
                         title: recipe.title || mealName,
+                        originalMealName: mealName, // Store original name for ingredient matching
                         image: recipe.image || '',
                         instructions: recipe.instructions || `Prepare ${mealName}.`,
                         analyzedInstructions: recipe.analyzedInstructions || null,
@@ -604,8 +605,20 @@
             }
 
             // Fallback: return basic info without API call
-            // Basic instructions for common meals
-            const basicInstructions = {
+            return {
+                title: mealName,
+                originalMealName: mealName, // Store original name for ingredient matching
+                image: '',
+                instructions: `Prepare ${mealName} according to your preference.`,
+                ingredients: (INGREDIENTS[mealName] || []).map(ing => 
+                    `${ing[1]} ${ing[2]} ${ing[0]}`
+                ),
+                fullRecipe: null
+            };
+        }
+
+        // Basic instructions for common meals (for display in modal)
+        const basicInstructions = {
                 'Oatmeal with fruits': '1. Cook oats according to package directions.\n2. Slice banana and apple.\n3. Top oatmeal with fresh fruits.\n4. Serve warm.',
                 'Avocado toast': '1. Toast bread slices.\n2. Mash avocado and spread on toast.\n3. Slice tomato and place on top.\n4. Season with salt and pepper.',
                 'Smoothie bowl': '1. Blend yogurt, berries, and banana until smooth.\n2. Pour into a bowl.\n3. Top with additional fruits and granola.\n4. Serve chilled.',
@@ -619,6 +632,7 @@
             
             return {
                 title: mealName,
+                originalMealName: mealName, // Store original name for ingredient matching
                 image: '',
                 instructions: basicInstructions[mealName] || `Prepare ${mealName} according to your preference:\n1. Gather all ingredients.\n2. Follow your favorite recipe.\n3. Cook until done.\n4. Serve and enjoy!`,
                 ingredients: (INGREDIENTS[mealName] || []).map(ing => 
@@ -834,19 +848,27 @@
         async function generateGroceryListFromPlan() {
             const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
             if (!weeklyPlan || !Array.isArray(weeklyPlan) || weeklyPlan.length === 0) {
+                console.log('No weekly plan found or invalid format');
                 return [];
             }
 
             try {
+                console.log('Generating grocery list from plan:', weeklyPlan);
                 
                 // Aggregate ingredients (port logic from Python)
                 const aggregated = {};
                 
-                // Flatten all meals from weekly plan
+                // Flatten all meals from weekly plan - use originalMealName if available
                 const allMeals = [];
                 weeklyPlan.forEach(day => {
-                    allMeals.push(day.breakfast.title, day.lunch.title, day.dinner.title);
+                    // Use originalMealName for ingredient matching (falls back to title)
+                    const breakfastName = day.breakfast.originalMealName || day.breakfast.title;
+                    const lunchName = day.lunch.originalMealName || day.lunch.title;
+                    const dinnerName = day.dinner.originalMealName || day.dinner.title;
+                    allMeals.push(breakfastName, lunchName, dinnerName);
                 });
+
+                console.log('Meal names for ingredients:', allMeals);
 
                 // Aggregate ingredients
                 allMeals.forEach(mealName => {
@@ -858,8 +880,12 @@
                             }
                             aggregated[key].qty += qty;
                         });
+                    } else {
+                        console.log(`No ingredients found for: ${mealName}`);
                     }
                 });
+
+                console.log('Aggregated ingredients:', aggregated);
 
                 // Convert to array format with IDs
                 return Object.values(aggregated).map(({ item, qty, unit }, index) => ({
