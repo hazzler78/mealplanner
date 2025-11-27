@@ -848,6 +848,7 @@
 
             try {
                 console.log('Generating grocery list from plan:', weeklyPlan);
+                console.log('Available INGREDIENTS keys:', Object.keys(INGREDIENTS));
                 
                 // Aggregate ingredients (port logic from Python)
                 const aggregated = {};
@@ -856,17 +857,22 @@
                 const allMeals = [];
                 weeklyPlan.forEach(day => {
                     // Use originalMealName for ingredient matching (falls back to title)
-                    const breakfastName = day.breakfast.originalMealName || day.breakfast.title;
-                    const lunchName = day.lunch.originalMealName || day.lunch.title;
-                    const dinnerName = day.dinner.originalMealName || day.dinner.title;
-                    allMeals.push(breakfastName, lunchName, dinnerName);
+                    const breakfastName = day.breakfast?.originalMealName || day.breakfast?.title || '';
+                    const lunchName = day.lunch?.originalMealName || day.lunch?.title || '';
+                    const dinnerName = day.dinner?.originalMealName || day.dinner?.title || '';
+                    if (breakfastName) allMeals.push(breakfastName);
+                    if (lunchName) allMeals.push(lunchName);
+                    if (dinnerName) allMeals.push(dinnerName);
                 });
 
                 console.log('Meal names for ingredients:', allMeals);
+                console.log('Total meals to process:', allMeals.length);
 
                 // Aggregate ingredients
+                let matchedCount = 0;
                 allMeals.forEach(mealName => {
                     if (INGREDIENTS[mealName]) {
+                        matchedCount++;
                         INGREDIENTS[mealName].forEach(([item, qty, unit]) => {
                             const key = `${item}_${unit}`;
                             if (!aggregated[key]) {
@@ -875,22 +881,28 @@
                             aggregated[key].qty += qty;
                         });
                     } else {
-                        console.log(`No ingredients found for: ${mealName}`);
+                        console.log(`No ingredients found for: "${mealName}"`);
                     }
                 });
 
+                console.log(`Matched ${matchedCount} out of ${allMeals.length} meals`);
                 console.log('Aggregated ingredients:', aggregated);
+                console.log('Number of unique ingredients:', Object.keys(aggregated).length);
 
                 // Convert to array format with IDs
-                return Object.values(aggregated).map(({ item, qty, unit }, index) => ({
+                const result = Object.values(aggregated).map(({ item, qty, unit }, index) => ({
                     id: `plan_${item}_${unit}_${index}`,
                     item,
                     qty,
                     unit,
                     completed: false
                 }));
+                
+                console.log('Final grocery list items:', result);
+                return result;
             } catch (error) {
                 console.error('Error generating grocery list:', error);
+                console.error('Error stack:', error.stack);
                 return [];
             }
         }
