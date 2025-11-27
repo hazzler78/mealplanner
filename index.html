@@ -178,11 +178,17 @@
             color: white;
             border: none;
             border-radius: 4px;
-            padding: 4px 8px;
+            padding: 4px 6px;
             cursor: pointer;
-            font-size: 11px;
+            font-size: 12px;
             transition: opacity 0.2s;
             min-width: auto;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
         }
 
         .grocery-delete-btn:hover {
@@ -554,7 +560,7 @@
                             <input type="checkbox" class="grocery-checkbox" ${completed ? 'checked' : ''} />
                             <span class="grocery-item-text">${item}${qtyStr}</span>
                         </div>
-                        <button class="grocery-delete-btn" data-id="${id}">Delete</button>
+                        <button class="grocery-delete-btn" data-id="${id}" title="Delete">×</button>
                     </div>
                 `;
             });
