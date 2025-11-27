@@ -31,17 +31,50 @@ export default async function handler(req, res) {
 
     try {
         const dietParam = diet ? `&diet=${diet}` : '';
-        const url = `https://api.spoonacular.com/recipes/complexSearch?query=${encodeURIComponent(query)}${dietParam}&apiKey=${apiKey}&number=1&addRecipeInformation=true`;
+        // First, search for recipes
+        const searchUrl = `https://api.spoonacular.com/recipes/complexSearch?query=${encodeURIComponent(query)}${dietParam}&apiKey=${apiKey}&number=1&addRecipeInformation=true`;
 
-        const response = await fetch(url);
+        const searchResponse = await fetch(searchUrl);
         
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Spoonacular API error: ${response.status} - ${errorText}`);
+        if (!searchResponse.ok) {
+            const errorText = await searchResponse.text();
+            throw new Error(`Spoonacular API error: ${searchResponse.status} - ${errorText}`);
         }
 
-        const data = await response.json();
-        res.status(200).json(data);
+        const searchData = await searchResponse.json();
+        
+        // If we found a recipe, get detailed information including step-by-step instructions
+        if (searchData.results && searchData.results.length > 0) {
+            const recipeId = searchData.results[0].id;
+            
+            // Fetch detailed recipe information with analyzed instructions
+            const detailUrl = `https://api.spoonacular.com/recipes/${recipeId}/information?apiKey=${apiKey}&includeNutrition=false`;
+            const detailResponse = await fetch(detailUrl);
+            
+            if (detailResponse.ok) {
+                const detailData = await detailResponse.json();
+                
+                // Merge detailed info with search results
+                const mergedRecipe = {
+                    ...searchData.results[0],
+                    ...detailData,
+                    // Prefer detailed instructions if available
+                    instructions: detailData.instructions || detailData.analyzedInstructions || searchData.results[0].instructions,
+                    analyzedInstructions: detailData.analyzedInstructions || null,
+                    readyInMinutes: detailData.readyInMinutes || null,
+                    servings: detailData.servings || null,
+                    summary: detailData.summary || null
+                };
+                
+                return res.status(200).json({
+                    ...searchData,
+                    results: [mergedRecipe]
+                });
+            }
+        }
+        
+        // Return search results even if detail fetch fails
+        res.status(200).json(searchData);
     } catch (error) {
         console.error('Error fetching recipe:', error);
         res.status(500).json({ error: error.message });
