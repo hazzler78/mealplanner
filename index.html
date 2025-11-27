@@ -432,6 +432,63 @@
         WebApp.ready();
         WebApp.expand();
 
+        // CloudStorage wrapper functions (persists data per user across sessions)
+        const CloudStorage = {
+            // Save data to Telegram CloudStorage
+            async setItem(key, value) {
+                try {
+                    if (WebApp.CloudStorage) {
+                        await WebApp.CloudStorage.setItem(key, JSON.stringify(value));
+                        console.log(`Saved to CloudStorage: ${key}`);
+                    } else {
+                        // Fallback to localStorage for testing outside Telegram
+                        localStorage.setItem(key, JSON.stringify(value));
+                        console.log(`Saved to localStorage (fallback): ${key}`);
+                    }
+                } catch (error) {
+                    console.error(`Error saving ${key}:`, error);
+                    // Fallback to localStorage
+                    localStorage.setItem(key, JSON.stringify(value));
+                }
+            },
+
+            // Load data from Telegram CloudStorage
+            async getItem(key) {
+                try {
+                    if (WebApp.CloudStorage) {
+                        const value = await WebApp.CloudStorage.getItem(key);
+                        if (value) {
+                            return JSON.parse(value);
+                        }
+                        return null;
+                    } else {
+                        // Fallback to localStorage for testing outside Telegram
+                        const value = localStorage.getItem(key);
+                        return value ? JSON.parse(value) : null;
+                    }
+                } catch (error) {
+                    console.error(`Error loading ${key}:`, error);
+                    // Fallback to localStorage
+                    const value = localStorage.getItem(key);
+                    return value ? JSON.parse(value) : null;
+                }
+            },
+
+            // Remove data from Telegram CloudStorage
+            async removeItem(key) {
+                try {
+                    if (WebApp.CloudStorage) {
+                        await WebApp.CloudStorage.removeItem(key);
+                    } else {
+                        localStorage.removeItem(key);
+                    }
+                } catch (error) {
+                    console.error(`Error removing ${key}:`, error);
+                    localStorage.removeItem(key);
+                }
+            }
+        };
+
         // Port meal data from Python
         const MEALS = {
             'Vegan': {
@@ -739,9 +796,12 @@
                     });
                 }
 
-                // Store plan in localStorage
-                localStorage.setItem('weeklyPlan', JSON.stringify(weeklyPlan));
-                localStorage.setItem('preference', preference);
+                // Store plan in CloudStorage (persists across sessions)
+                await CloudStorage.setItem('weeklyPlan', weeklyPlan);
+                await CloudStorage.setItem('preference', preference);
+                
+                // Also restore the plan display on page load
+                await restoreWeeklyPlan();
                 
                 // Show grocery list button
                 groceryBtn.style.display = 'block';
@@ -753,12 +813,11 @@
         });
 
         // Generate grocery list from meal plan
-        function generateGroceryListFromPlan() {
-            const weeklyPlanStr = localStorage.getItem('weeklyPlan');
-            if (!weeklyPlanStr) return [];
+        async function generateGroceryListFromPlan() {
+            const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
+            if (!weeklyPlan) return [];
 
             try {
-                const weeklyPlan = JSON.parse(weeklyPlanStr);
                 
                 // Aggregate ingredients (port logic from Python)
                 const aggregated = {};
@@ -796,29 +855,25 @@
             }
         }
 
-        // Load grocery list from localStorage or generate from plan
-        function loadGroceryList() {
-            const saved = localStorage.getItem('groceryList');
+        // Load grocery list from CloudStorage or generate from plan
+        async function loadGroceryList() {
+            const saved = await CloudStorage.getItem('groceryList');
             if (saved) {
-                try {
-                    return JSON.parse(saved);
-                } catch (e) {
-                    console.error('Error parsing saved grocery list:', e);
-                }
+                return saved;
             }
             // Generate from meal plan if no saved list
-            return generateGroceryListFromPlan();
+            return await generateGroceryListFromPlan();
         }
 
-        // Save grocery list to localStorage
-        function saveGroceryList(items) {
-            localStorage.setItem('groceryList', JSON.stringify(items));
+        // Save grocery list to CloudStorage
+        async function saveGroceryList(items) {
+            await CloudStorage.setItem('groceryList', items);
         }
 
         // Render grocery list
-        function renderGroceryList() {
+        async function renderGroceryList() {
             const groceryOutput = document.getElementById('grocery-output');
-            const items = loadGroceryList();
+            const items = await loadGroceryList();
 
             if (items.length === 0) {
                 groceryOutput.innerHTML = '<div class="grocery-list"><h2>Your Grocery List</h2><div class="grocery-empty">No items yet. Generate a meal plan or add items manually.</div></div>';
@@ -873,26 +928,26 @@
         function attachGroceryListeners() {
             // Checkbox listeners (toggle completed)
             document.querySelectorAll('.grocery-checkbox').forEach(checkbox => {
-                checkbox.addEventListener('change', (e) => {
+                checkbox.addEventListener('change', async (e) => {
                     const itemId = e.target.closest('.grocery-item').dataset.id;
-                    const items = loadGroceryList();
+                    const items = await loadGroceryList();
                     const item = items.find(i => i.id === itemId);
                     if (item) {
                         item.completed = e.target.checked;
-                        saveGroceryList(items);
-                        renderGroceryList();
+                        await saveGroceryList(items);
+                        await renderGroceryList();
                     }
                 });
             });
 
             // Delete button listeners
             document.querySelectorAll('.grocery-delete-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                btn.addEventListener('click', async (e) => {
                     const itemId = e.target.dataset.id;
-                    const items = loadGroceryList();
+                    const items = await loadGroceryList();
                     const filtered = items.filter(i => i.id !== itemId);
-                    saveGroceryList(filtered);
-                    renderGroceryList();
+                    await saveGroceryList(filtered);
+                    await renderGroceryList();
                 });
             });
 
@@ -903,14 +958,14 @@
             const unitInput = document.getElementById('new-item-unit');
 
             if (addBtn) {
-                addBtn.addEventListener('click', () => {
+                addBtn.addEventListener('click', async () => {
                     const name = nameInput.value.trim();
                     if (!name) return;
 
                     const qty = qtyInput.value.trim() ? parseFloat(qtyInput.value) : null;
                     const unit = unitInput.value.trim() || '';
 
-                    const items = loadGroceryList();
+                    const items = await loadGroceryList();
                     const newId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                     items.push({
                         id: newId,
@@ -920,8 +975,8 @@
                         completed: false
                     });
 
-                    saveGroceryList(items);
-                    renderGroceryList();
+                    await saveGroceryList(items);
+                    await renderGroceryList();
 
                     // Clear inputs
                     nameInput.value = '';
@@ -943,28 +998,101 @@
         }
 
         // Generate grocery list button click handler
-        document.getElementById('grocery-list').addEventListener('click', () => {
-            const weeklyPlanStr = localStorage.getItem('weeklyPlan');
+        document.getElementById('grocery-list').addEventListener('click', async () => {
+            const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
             const groceryOutput = document.getElementById('grocery-output');
 
-            if (!weeklyPlanStr) {
+            if (!weeklyPlan) {
                 groceryOutput.innerHTML = '<div class="error">Please generate a meal plan first!</div>';
                 return;
             }
 
             // Generate fresh list from plan (merge with existing manual items)
-            const planItems = generateGroceryListFromPlan();
-            const existingItems = loadGroceryList();
+            const planItems = await generateGroceryListFromPlan();
+            const existingItems = await loadGroceryList();
             
             // Keep manual items (those not from plan)
             const manualItems = existingItems.filter(item => !item.id.startsWith('plan_'));
             
             // Merge: plan items + manual items
             const mergedItems = [...planItems, ...manualItems];
-            saveGroceryList(mergedItems);
+            await saveGroceryList(mergedItems);
             
-            renderGroceryList();
+            await renderGroceryList();
         });
+
+        // Restore weekly plan on page load
+        async function restoreWeeklyPlan() {
+            const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
+            const preference = await CloudStorage.getItem('preference');
+            
+            if (weeklyPlan && preference) {
+                // Set preference dropdown
+                document.getElementById('preference').value = preference;
+                
+                // Show grocery list button
+                document.getElementById('grocery-list').style.display = 'block';
+                
+                // Re-render the plan
+                const planOutput = document.getElementById('plan-output');
+                const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                
+                planOutput.innerHTML = '<h2>Your Saved Weekly Meal Plan</h2>';
+                
+                weeklyPlan.forEach((dayMeals, i) => {
+                    const dayDiv = document.createElement('div');
+                    dayDiv.classList.add('meal-card');
+                    dayDiv.innerHTML = `
+                        <h3>${days[i]}</h3>
+                        <div class="meal-item">
+                            <h4>Breakfast: ${dayMeals.breakfast.title}</h4>
+                            ${dayMeals.breakfast.image ? `<img src="${dayMeals.breakfast.image}" alt="${dayMeals.breakfast.title}">` : ''}
+                            <div class="recipe-info">
+                                <h5>Ingredients:</h5>
+                                <ul>${dayMeals.breakfast.ingredients.map(ing => `<li>${ing}</li>`).join('')}</ul>
+                            </div>
+                            <p style="margin-top: 10px; color: var(--tg-theme-link-color, #0088cc); font-size: 14px;">👆 Tap to see full recipe</p>
+                        </div>
+                        <div class="meal-item">
+                            <h4>Lunch: ${dayMeals.lunch.title}</h4>
+                            ${dayMeals.lunch.image ? `<img src="${dayMeals.lunch.image}" alt="${dayMeals.lunch.title}">` : ''}
+                            <div class="recipe-info">
+                                <h5>Ingredients:</h5>
+                                <ul>${dayMeals.lunch.ingredients.map(ing => `<li>${ing}</li>`).join('')}</ul>
+                            </div>
+                            <p style="margin-top: 10px; color: var(--tg-theme-link-color, #0088cc); font-size: 14px;">👆 Tap to see full recipe</p>
+                        </div>
+                        <div class="meal-item">
+                            <h4>Dinner: ${dayMeals.dinner.title}</h4>
+                            ${dayMeals.dinner.image ? `<img src="${dayMeals.dinner.image}" alt="${dayMeals.dinner.title}">` : ''}
+                            <div class="recipe-info">
+                                <h5>Ingredients:</h5>
+                                <ul>${dayMeals.dinner.ingredients.map(ing => `<li>${ing}</li>`).join('')}</ul>
+                            </div>
+                            <p style="margin-top: 10px; color: var(--tg-theme-link-color, #0088cc); font-size: 14px;">👆 Tap to see full recipe</p>
+                        </div>
+                    `;
+                    planOutput.appendChild(dayDiv);
+                    
+                    // Add click handlers to meal items
+                    const mealItems = dayDiv.querySelectorAll('.meal-item');
+                    mealItems[0].recipeData = dayMeals.breakfast;
+                    mealItems[1].recipeData = dayMeals.lunch;
+                    mealItems[2].recipeData = dayMeals.dinner;
+                    
+                    mealItems.forEach(item => {
+                        item.addEventListener('click', () => {
+                            if (item.recipeData) {
+                                showRecipeModal(item.recipeData);
+                            }
+                        });
+                    });
+                });
+            }
+        }
+
+        // Load saved data on page load
+        restoreWeeklyPlan();
 
         // Modal close handlers
         document.getElementById('recipe-modal-close').addEventListener('click', closeRecipeModal);
