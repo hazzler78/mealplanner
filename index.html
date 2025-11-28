@@ -556,24 +556,26 @@
                     if (isAvailable) {
                         try {
                             value = await WebApp.CloudStorage.getItem(key);
-                            // Handle empty string response (indicates data was too large or not saved)
-                            if (value === '' || value === null || value === undefined) {
-                                console.log(`CloudStorage returned empty for ${key}, trying localStorage`);
+                            // Handle empty string, null, or undefined response (indicates data was too large or not saved)
+                            if (!value || value === '' || value === null || value === undefined) {
+                                console.log(`CloudStorage returned empty/null for ${key}, trying localStorage`);
                                 value = null; // Will fall through to localStorage
                             } else {
-                                console.log(`Loaded ${key} from CloudStorage (length: ${value.length})`);
+                                const valueLength = typeof value === 'string' ? value.length : 'N/A';
+                                console.log(`Loaded ${key} from CloudStorage (length: ${valueLength})`);
                                 fromCloudStorage = true;
                             }
                         } catch (cloudError) {
                             console.log(`CloudStorage error for ${key}, using localStorage:`, cloudError.message);
+                            value = null; // Ensure we check localStorage
                             // Fall through to localStorage fallback
                         }
                     }
                     
                     // If CloudStorage didn't work, returned empty, or isn't available, use localStorage
-                    if (!value || value === '') {
+                    if (!value || value === '' || value === null || value === undefined) {
                         const localValue = localStorage.getItem(key);
-                        if (localValue && localValue !== '') {
+                        if (localValue && localValue !== '' && localValue !== null) {
                             value = localValue;
                             console.log(`Loaded ${key} from localStorage (length: ${value.length})`);
                             fromCloudStorage = false;
