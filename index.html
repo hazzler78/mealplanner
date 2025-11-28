@@ -497,6 +497,14 @@
                     // Convert value to string (handle objects, arrays, and primitives)
                     const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
                     
+                    // Check size limit (Telegram CloudStorage has ~4KB limit per key)
+                    if (stringValue.length > 4000) {
+                        console.warn(`Data too large for CloudStorage (${stringValue.length} bytes), using localStorage for ${key}`);
+                        localStorage.setItem(key, stringValue);
+                        console.log(`Saved to localStorage (fallback due to size): ${key}`);
+                        return;
+                    }
+                    
                     // Check if CloudStorage is actually available
                     const isAvailable = await checkCloudStorageAvailability();
                     
@@ -506,6 +514,14 @@
                             console.log(`Saved to CloudStorage: ${key}`);
                             return; // Success, exit early
                         } catch (cloudError) {
+                            // Check for DATA_TOO_LONG error specifically
+                            const errorMsg = cloudError.message || cloudError.toString() || '';
+                            if (errorMsg.includes('DATA_TOO_LONG') || errorMsg.includes('data too long')) {
+                                console.warn(`CloudStorage DATA_TOO_LONG for ${key}, using localStorage fallback`);
+                                localStorage.setItem(key, stringValue);
+                                console.log(`Saved to localStorage (fallback due to DATA_TOO_LONG): ${key}`);
+                                return;
+                            }
                             console.log(`CloudStorage error for ${key}, using localStorage:`, cloudError.message);
                             // Fall through to localStorage fallback
                         }
@@ -520,6 +536,7 @@
                     try {
                         const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
                         localStorage.setItem(key, stringValue);
+                        console.log(`Saved to localStorage (final fallback): ${key}`);
                     } catch (e) {
                         console.error(`Failed to save ${key} to localStorage:`, e);
                     }
@@ -538,7 +555,13 @@
                     if (isAvailable) {
                         try {
                             value = await WebApp.CloudStorage.getItem(key);
-                            console.log(`Loaded ${key} from CloudStorage`);
+                            // Handle empty string response (indicates data was too large or not saved)
+                            if (value === '' || value === null || value === undefined) {
+                                console.log(`CloudStorage returned empty for ${key}, trying localStorage`);
+                                value = null; // Will fall through to localStorage
+                            } else {
+                                console.log(`Loaded ${key} from CloudStorage`);
+                            }
                         } catch (cloudError) {
                             console.log(`CloudStorage error for ${key}, using localStorage:`, cloudError.message);
                             // Fall through to localStorage fallback
@@ -546,7 +569,7 @@
                     }
                     
                     // If CloudStorage didn't work or isn't available, use localStorage
-                    if (!value) {
+                    if (!value || value === '') {
                         value = localStorage.getItem(key);
                         if (value) {
                             console.log(`Loaded ${key} from localStorage`);
