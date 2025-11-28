@@ -1294,6 +1294,9 @@
                 groceryBtn.disabled = false;
             }
         });
+        } else {
+            console.error('Grocery list button not found');
+        }
 
         // Restore weekly plan on page load
         async function restoreWeeklyPlan() {
