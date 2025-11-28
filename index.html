@@ -422,6 +422,8 @@
 
         <button id="grocery-list" style="display: none;">View Grocery List</button>
         <div id="grocery-output"></div>
+
+        <button id="add-custom-recipe" style="margin-top: 20px;">➕ Add Custom Recipe</button>
     </div>
 
     <!-- Recipe Modal -->
@@ -429,6 +431,51 @@
         <div class="recipe-modal-content">
             <button class="recipe-modal-close" id="recipe-modal-close">×</button>
             <div id="recipe-modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Add Custom Recipe Modal -->
+    <div id="add-recipe-modal" class="recipe-modal">
+        <div class="recipe-modal-content" style="max-width: 500px;">
+            <button class="recipe-modal-close" id="add-recipe-modal-close">×</button>
+            <div class="recipe-modal-header">
+                <h2>Add Custom Recipe</h2>
+            </div>
+            <div style="padding: 0 20px 20px;">
+                <div class="form-group">
+                    <label for="recipe-name">Recipe Name:</label>
+                    <input type="text" id="recipe-name" class="add-item-input" placeholder="e.g., Chicken Curry" />
+                </div>
+                <div class="form-group">
+                    <label for="recipe-meal-type">Meal Type:</label>
+                    <select id="recipe-meal-type" style="width: 100%; padding: 12px; border: 1px solid var(--tg-theme-hint-color, #999); border-radius: 8px; background: var(--tg-theme-bg-color, #ffffff); color: var(--tg-theme-text-color, #000000); font-size: 16px;">
+                        <option value="breakfast">Breakfast</option>
+                        <option value="lunch">Lunch</option>
+                        <option value="dinner">Dinner</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="recipe-diet">Diet Type:</label>
+                    <select id="recipe-diet" style="width: 100%; padding: 12px; border: 1px solid var(--tg-theme-hint-color, #999); border-radius: 8px; background: var(--tg-theme-bg-color, #ffffff); color: var(--tg-theme-text-color, #000000); font-size: 16px;">
+                        <option value="No restrictions">No restrictions</option>
+                        <option value="Vegan">Vegan</option>
+                        <option value="Keto">Keto</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="recipe-ingredients">Ingredients (one per line):</label>
+                    <textarea id="recipe-ingredients" class="add-item-input" rows="5" placeholder="e.g.,&#10;2 cups Chicken&#10;1 Onion&#10;1 can Coconut milk"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="recipe-instructions">Instructions:</label>
+                    <textarea id="recipe-instructions" class="add-item-input" rows="6" placeholder="Step-by-step instructions..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="recipe-image-url">Image URL (optional):</label>
+                    <input type="text" id="recipe-image-url" class="add-item-input" placeholder="https://..." />
+                </div>
+                <button id="save-custom-recipe" style="width: 100%; margin-top: 10px;">Save Recipe</button>
+            </div>
         </div>
     </div>
 
@@ -678,6 +725,141 @@
             'Tofu curry': [['Tofu', 200, 'g'], ['Coconut milk', 1, 'can'], ['Curry powder', 2, 'tsp']]
         };
 
+        // Custom recipes storage and management
+        let customRecipes = {}; // Will store { diet: { mealType: [recipeNames] } }
+        let customRecipeData = {}; // Will store full recipe data by name
+
+        // Load custom recipes from storage
+        async function loadCustomRecipes() {
+            const saved = await CloudStorage.getItem('customRecipes');
+            const savedData = await CloudStorage.getItem('customRecipeData');
+            
+            if (saved && typeof saved === 'object') {
+                customRecipes = saved;
+            }
+            if (savedData && typeof savedData === 'object') {
+                customRecipeData = savedData;
+            }
+            
+            // Merge custom recipes into MEALS structure
+            mergeCustomRecipesIntoMeals();
+            
+            // Merge custom ingredients into INGREDIENTS
+            mergeCustomIngredients();
+        }
+
+        // Merge custom recipes into MEALS
+        function mergeCustomRecipesIntoMeals() {
+            Object.keys(customRecipes).forEach(diet => {
+                if (!MEALS[diet]) {
+                    MEALS[diet] = { breakfast: [], lunch: [], dinner: [] };
+                }
+                Object.keys(customRecipes[diet]).forEach(mealType => {
+                    if (MEALS[diet][mealType]) {
+                        // Add custom recipes that aren't already there
+                        customRecipes[diet][mealType].forEach(recipeName => {
+                            if (!MEALS[diet][mealType].includes(recipeName)) {
+                                MEALS[diet][mealType].push(recipeName);
+                            }
+                        });
+                    }
+                });
+            });
+        }
+
+        // Merge custom ingredients into INGREDIENTS
+        function mergeCustomIngredients() {
+            Object.keys(customRecipeData).forEach(recipeName => {
+                const recipe = customRecipeData[recipeName];
+                if (recipe.ingredients && recipe.ingredients.length > 0) {
+                    // Convert ingredients array to INGREDIENTS format
+                    const ingredientsArray = recipe.ingredients.map(ing => {
+                        const ingStr = ing.trim();
+                        if (!ingStr) return null;
+                        
+                        // Try to parse ingredient string like "2 cups Chicken" or "1 Onion" or "200g Chicken"
+                        // Match patterns like: "2 cups", "1", "200g", etc.
+                        const match = ingStr.match(/^(\d+(?:\.\d+)?)\s*(\w+)?\s*(.+)$/);
+                        if (match) {
+                            const qty = parseFloat(match[1]) || 1;
+                            const unit = match[2] || '';
+                            const item = match[3].trim() || match[2] || ingStr;
+                            return [item, qty, unit];
+                        } else {
+                            // If no match, treat whole string as item name
+                            return [ingStr, 1, ''];
+                        }
+                    }).filter(ing => ing !== null);
+                    
+                    if (ingredientsArray.length > 0) {
+                        INGREDIENTS[recipeName] = ingredientsArray;
+                    }
+                }
+            });
+        }
+
+        // Save custom recipes to storage
+        async function saveCustomRecipes() {
+            await CloudStorage.setItem('customRecipes', customRecipes);
+            await CloudStorage.setItem('customRecipeData', customRecipeData);
+        }
+
+        // Add custom recipe
+        async function addCustomRecipe(recipe) {
+            const { name, mealType, diet, ingredients, instructions, imageUrl } = recipe;
+            
+            // Initialize structure if needed
+            if (!customRecipes[diet]) {
+                customRecipes[diet] = {};
+            }
+            if (!customRecipes[diet][mealType]) {
+                customRecipes[diet][mealType] = [];
+            }
+            
+            // Add to custom recipes list
+            if (!customRecipes[diet][mealType].includes(name)) {
+                customRecipes[diet][mealType].push(name);
+            }
+            
+            // Format ingredients for display (convert to string format like "2 cups Chicken")
+            const formattedIngredients = ingredients.map(ing => {
+                const ingStr = ing.trim();
+                if (!ingStr) return '';
+                
+                // Try to parse and reformat
+                const match = ingStr.match(/^(\d+(?:\.\d+)?)\s*(\w+)?\s*(.+)$/);
+                if (match) {
+                    const qty = parseFloat(match[1]) || 1;
+                    const unit = match[2] || '';
+                    const item = match[3].trim() || match[2] || ingStr;
+                    return unit ? `${qty} ${unit} ${item}` : `${qty} ${item}`;
+                }
+                return ingStr;
+            }).filter(ing => ing.length > 0);
+            
+            // Store full recipe data
+            customRecipeData[name] = {
+                title: name,
+                originalMealName: name,
+                image: imageUrl || '',
+                instructions: instructions || `Prepare ${name} according to your preference.`,
+                ingredients: formattedIngredients,
+                readyInMinutes: null,
+                servings: null,
+                fullRecipe: null
+            };
+            
+            // Save to storage
+            await saveCustomRecipes();
+            
+            // Merge into MEALS and INGREDIENTS
+            mergeCustomRecipesIntoMeals();
+            mergeCustomIngredients();
+        }
+
+        // Load custom recipes on page load
+        loadCustomRecipes();
+
         // Helper function to shuffle array
         function shuffleArray(array) {
             const shuffled = [...array];
@@ -690,6 +872,12 @@
 
         // Fetch recipe from Spoonacular API via serverless function (with fallback)
         async function fetchRecipe(mealName, preference) {
+            // Check if it's a custom recipe first
+            if (customRecipeData[mealName]) {
+                console.log('Using custom recipe:', mealName);
+                return customRecipeData[mealName];
+            }
+            
             try {
                 const dietMap = {
                     'Vegan': 'vegan',
@@ -1662,6 +1850,77 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 closeRecipeModal();
+                closeAddRecipeModal();
+            }
+        });
+
+        // Add Custom Recipe Modal handlers
+        function openAddRecipeModal() {
+            const modal = document.getElementById('add-recipe-modal');
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            // Clear form
+            document.getElementById('recipe-name').value = '';
+            document.getElementById('recipe-meal-type').value = 'breakfast';
+            document.getElementById('recipe-diet').value = 'No restrictions';
+            document.getElementById('recipe-ingredients').value = '';
+            document.getElementById('recipe-instructions').value = '';
+            document.getElementById('recipe-image-url').value = '';
+        }
+
+        function closeAddRecipeModal() {
+            const modal = document.getElementById('add-recipe-modal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Open add recipe modal
+        document.getElementById('add-custom-recipe').addEventListener('click', openAddRecipeModal);
+        
+        // Close add recipe modal
+        document.getElementById('add-recipe-modal-close').addEventListener('click', closeAddRecipeModal);
+        
+        // Close add recipe modal when clicking outside
+        document.getElementById('add-recipe-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'add-recipe-modal') {
+                closeAddRecipeModal();
+            }
+        });
+
+        // Save custom recipe
+        document.getElementById('save-custom-recipe').addEventListener('click', async () => {
+            const name = document.getElementById('recipe-name').value.trim();
+            const mealType = document.getElementById('recipe-meal-type').value;
+            const diet = document.getElementById('recipe-diet').value;
+            const ingredientsText = document.getElementById('recipe-ingredients').value.trim();
+            const instructions = document.getElementById('recipe-instructions').value.trim();
+            const imageUrl = document.getElementById('recipe-image-url').value.trim();
+
+            if (!name) {
+                alert('Please enter a recipe name');
+                return;
+            }
+
+            // Parse ingredients (one per line)
+            const ingredients = ingredientsText
+                ? ingredientsText.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+                : [];
+
+            try {
+                await addCustomRecipe({
+                    name,
+                    mealType,
+                    diet,
+                    ingredients,
+                    instructions,
+                    imageUrl
+                });
+
+                closeAddRecipeModal();
+                alert(`Recipe "${name}" added successfully! It will be available when you generate a new meal plan.`);
+            } catch (error) {
+                console.error('Error saving custom recipe:', error);
+                alert('Error saving recipe. Please try again.');
             }
         });
 
