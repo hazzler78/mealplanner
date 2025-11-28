@@ -584,8 +584,14 @@
                         }
                     }
                     
-                    if (!value || value === '') {
+                    if (!value || value === '' || value === null || value === undefined) {
                         console.log(`No value found for ${key} in CloudStorage or localStorage`);
+                        return null;
+                    }
+                    
+                    // Ensure value is a string before parsing
+                    if (typeof value !== 'string') {
+                        console.log(`Value for ${key} is not a string (type: ${typeof value}), returning null`);
                         return null;
                     }
                     
@@ -1699,4 +1705,5 @@
     </script>
 </body>
 </html>
+
 
