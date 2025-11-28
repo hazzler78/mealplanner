@@ -1098,7 +1098,15 @@
 
         // Save grocery list to CloudStorage
         async function saveGroceryList(items) {
+            // Always save to both CloudStorage and localStorage to ensure data persistence
             await CloudStorage.setItem('groceryList', items);
+            // Also save directly to localStorage as backup (CloudStorage wrapper should do this, but ensure it)
+            try {
+                localStorage.setItem('groceryList', JSON.stringify(items));
+                console.log('Also saved groceryList directly to localStorage');
+            } catch (e) {
+                console.error('Failed to save to localStorage directly:', e);
+            }
         }
 
         // Render grocery list
