@@ -1079,13 +1079,12 @@
             html += '</div>';
             groceryOutput.innerHTML = html;
 
-            // Attach event listeners
+            // Attach event listeners (both delegation and direct)
             attachGroceryListeners();
         }
 
-        // Attach event listeners to grocery items using event delegation
-        // This ensures listeners work even after DOM is replaced
-        // Works on both desktop and mobile
+        // Attach event listeners to grocery items
+        // Use both event delegation AND direct attachment for maximum compatibility
         let groceryListenersAttached = false;
         
         function attachGroceryListeners() {
@@ -1093,15 +1092,16 @@
             
             if (!groceryOutput) {
                 console.warn('grocery-output element not found, cannot attach listeners');
+                // Retry after a short delay
+                setTimeout(() => attachGroceryListeners(), 100);
                 return;
             }
             
-            // Only attach once using event delegation
+            // Attach delegation listeners once (they persist through DOM changes)
             if (!groceryListenersAttached) {
-                console.log('Attaching grocery listeners...');
+                console.log('Attaching grocery delegation listeners...');
                 
                 // Use event delegation for checkboxes - works on mobile and desktop
-                // Don't use preventDefault on change events as it can interfere with checkbox behavior
                 groceryOutput.addEventListener('change', async (e) => {
                     if (e.target.classList.contains('grocery-checkbox')) {
                         e.stopPropagation();
@@ -1212,22 +1212,157 @@
                 });
                 
                 groceryListenersAttached = true;
-                console.log('Grocery listeners attached successfully');
+                console.log('Grocery delegation listeners attached successfully');
+            }
+            
+            // ALWAYS attach direct listeners to current elements (for Telegram compatibility)
+            attachDirectListeners();
+        }
+        
+        // Attach listeners directly to elements (re-attach after each render)
+        function attachDirectListeners() {
+            console.log('Attaching direct listeners to grocery elements...');
+            
+            // Attach to all checkboxes
+            document.querySelectorAll('.grocery-checkbox').forEach(checkbox => {
+                // Remove existing listeners to avoid duplicates
+                const newCheckbox = checkbox.cloneNode(true);
+                checkbox.parentNode.replaceChild(newCheckbox, checkbox);
+                
+                newCheckbox.addEventListener('change', async function(e) {
+                    e.stopPropagation();
+                    const itemId = this.closest('.grocery-item')?.dataset.id;
+                    console.log('Direct checkbox changed for item:', itemId, 'checked:', this.checked);
+                    if (!itemId) return;
+                    
+                    try {
+                        const items = await loadGroceryList();
+                        const item = items.find(i => i.id === itemId);
+                        if (item) {
+                            item.completed = this.checked;
+                            await saveGroceryList(items);
+                            await renderGroceryList();
+                        }
+                    } catch (error) {
+                        console.error('Error handling checkbox change:', error);
+                    }
+                });
+            });
+            
+            // Attach to delete buttons
+            document.querySelectorAll('.grocery-delete-btn').forEach(btn => {
+                // Remove existing listeners
+                const newBtn = btn.cloneNode(true);
+                btn.parentNode.replaceChild(newBtn, btn);
+                
+                const handleDelete = async function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const itemId = this.dataset.id;
+                    console.log('Direct delete button clicked for item:', itemId);
+                    if (!itemId) return;
+                    
+                    try {
+                        const items = await loadGroceryList();
+                        const filtered = items.filter(i => i.id !== itemId);
+                        await saveGroceryList(filtered);
+                        await renderGroceryList();
+                    } catch (error) {
+                        console.error('Error deleting item:', error);
+                    }
+                };
+                
+                newBtn.addEventListener('click', handleDelete);
+                newBtn.addEventListener('touchend', handleDelete);
+            });
+            
+            // Attach to add button
+            const addBtn = document.getElementById('add-item-btn');
+            if (addBtn) {
+                // Remove existing listeners
+                const newAddBtn = addBtn.cloneNode(true);
+                addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+                
+                const handleAdd = async function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Direct add item button clicked');
+                    
+                    const nameInput = document.getElementById('new-item-name');
+                    const qtyInput = document.getElementById('new-item-qty');
+                    const unitInput = document.getElementById('new-item-unit');
+                    
+                    if (!nameInput) {
+                        console.error('Name input not found');
+                        return;
+                    }
+                    
+                    const name = nameInput.value.trim();
+                    if (!name) {
+                        console.log('No name provided, skipping');
+                        return;
+                    }
+
+                    const qty = qtyInput.value.trim() ? parseFloat(qtyInput.value) : null;
+                    const unit = unitInput.value.trim() || '';
+
+                    try {
+                        const items = await loadGroceryList();
+                        const newId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                        items.push({
+                            id: newId,
+                            item: name,
+                            qty: qty,
+                            unit: unit,
+                            completed: false
+                        });
+
+                        console.log('Saving new item:', name);
+                        await saveGroceryList(items);
+                        await renderGroceryList();
+                    } catch (error) {
+                        console.error('Error adding item:', error);
+                    }
+                };
+                
+                newAddBtn.addEventListener('click', handleAdd);
+                newAddBtn.addEventListener('touchend', handleAdd);
+            }
+            
+            console.log('Direct listeners attached');
+        }
+        
+        // Initialize listeners when Telegram WebApp is ready
+        function initializeListeners() {
+            if (isTelegram && WebApp) {
+                // Wait for Telegram WebApp to be fully ready
+                if (WebApp.isReady) {
+                    console.log('Telegram WebApp is ready, attaching listeners');
+                    attachGroceryListeners();
+                } else {
+                    console.log('Waiting for Telegram WebApp to be ready...');
+                    WebApp.ready();
+                    setTimeout(() => {
+                        attachGroceryListeners();
+                    }, 100);
+                }
             } else {
-                console.log('Grocery listeners already attached');
+                // Not in Telegram, attach immediately
+                console.log('Not in Telegram, attaching listeners');
+                attachGroceryListeners();
             }
         }
         
         // Ensure listeners are attached when DOM is ready
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
-                console.log('DOM loaded, ensuring grocery listeners are attached');
-                attachGroceryListeners();
+                console.log('DOM loaded, initializing listeners');
+                initializeListeners();
             });
         } else {
             // DOM already loaded
-            console.log('DOM already loaded, attaching grocery listeners');
-            attachGroceryListeners();
+            console.log('DOM already loaded, initializing listeners');
+            initializeListeners();
         }
 
         // Generate grocery list button click handler
