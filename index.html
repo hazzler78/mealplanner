@@ -1319,13 +1319,16 @@
         function attachDirectListeners() {
             console.log('Attaching direct listeners to grocery elements...');
             
-            // Attach to all checkboxes
+            // Attach to all checkboxes - use a data attribute to track if listener is attached
             document.querySelectorAll('.grocery-checkbox').forEach(checkbox => {
-                // Remove existing listeners to avoid duplicates
-                const newCheckbox = checkbox.cloneNode(true);
-                checkbox.parentNode.replaceChild(newCheckbox, checkbox);
+                // Skip if listener already attached
+                if (checkbox.dataset.listenerAttached === 'true') {
+                    return;
+                }
                 
-                newCheckbox.addEventListener('change', async function(e) {
+                checkbox.dataset.listenerAttached = 'true';
+                
+                checkbox.addEventListener('change', async function(e) {
                     e.stopPropagation();
                     const itemId = this.closest('.grocery-item')?.dataset.id;
                     console.log('Direct checkbox changed for item:', itemId, 'checked:', this.checked);
@@ -1343,13 +1346,39 @@
                         console.error('Error handling checkbox change:', error);
                     }
                 });
+                
+                // Also handle click for better mobile support
+                checkbox.addEventListener('click', async function(e) {
+                    e.stopPropagation();
+                    const itemId = this.closest('.grocery-item')?.dataset.id;
+                    console.log('Direct checkbox clicked for item:', itemId, 'checked:', this.checked);
+                    if (!itemId) return;
+                    
+                    // Small delay to let the checkbox state update
+                    setTimeout(async () => {
+                        try {
+                            const items = await loadGroceryList();
+                            const item = items.find(i => i.id === itemId);
+                            if (item) {
+                                item.completed = this.checked;
+                                await saveGroceryList(items);
+                                await renderGroceryList();
+                            }
+                        } catch (error) {
+                            console.error('Error handling checkbox click:', error);
+                        }
+                    }, 10);
+                });
             });
             
             // Attach to delete buttons
             document.querySelectorAll('.grocery-delete-btn').forEach(btn => {
-                // Remove existing listeners
-                const newBtn = btn.cloneNode(true);
-                btn.parentNode.replaceChild(newBtn, btn);
+                // Skip if listener already attached
+                if (btn.dataset.listenerAttached === 'true') {
+                    return;
+                }
+                
+                btn.dataset.listenerAttached = 'true';
                 
                 const handleDelete = async function(e) {
                     e.preventDefault();
@@ -1368,16 +1397,14 @@
                     }
                 };
                 
-                newBtn.addEventListener('click', handleDelete);
-                newBtn.addEventListener('touchend', handleDelete);
+                btn.addEventListener('click', handleDelete);
+                btn.addEventListener('touchend', handleDelete);
             });
             
             // Attach to add button
             const addBtn = document.getElementById('add-item-btn');
-            if (addBtn) {
-                // Remove existing listeners
-                const newAddBtn = addBtn.cloneNode(true);
-                addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+            if (addBtn && addBtn.dataset.listenerAttached !== 'true') {
+                addBtn.dataset.listenerAttached = 'true';
                 
                 const handleAdd = async function(e) {
                     e.preventDefault();
@@ -1421,8 +1448,8 @@
                     }
                 };
                 
-                newAddBtn.addEventListener('click', handleAdd);
-                newAddBtn.addEventListener('touchend', handleAdd);
+                addBtn.addEventListener('click', handleAdd);
+                addBtn.addEventListener('touchend', handleAdd);
             }
             
             console.log('Direct listeners attached');
