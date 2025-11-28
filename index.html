@@ -547,6 +547,7 @@
             async getItem(key) {
                 try {
                     let value = null;
+                    let fromCloudStorage = false;
                     
                     // Check if CloudStorage is actually available
                     const isAvailable = await checkCloudStorageAvailability();
@@ -560,7 +561,8 @@
                                 console.log(`CloudStorage returned empty for ${key}, trying localStorage`);
                                 value = null; // Will fall through to localStorage
                             } else {
-                                console.log(`Loaded ${key} from CloudStorage`);
+                                console.log(`Loaded ${key} from CloudStorage (length: ${value.length})`);
+                                fromCloudStorage = true;
                             }
                         } catch (cloudError) {
                             console.log(`CloudStorage error for ${key}, using localStorage:`, cloudError.message);
@@ -568,27 +570,31 @@
                         }
                     }
                     
-                    // If CloudStorage didn't work or isn't available, use localStorage
+                    // If CloudStorage didn't work, returned empty, or isn't available, use localStorage
                     if (!value || value === '') {
-                        value = localStorage.getItem(key);
-                        if (value) {
-                            console.log(`Loaded ${key} from localStorage`);
+                        const localValue = localStorage.getItem(key);
+                        if (localValue && localValue !== '') {
+                            value = localValue;
+                            console.log(`Loaded ${key} from localStorage (length: ${value.length})`);
+                            fromCloudStorage = false;
+                        } else {
+                            console.log(`No value found for ${key} in localStorage either`);
                         }
                     }
                     
-                    if (!value) {
-                        console.log(`No value found for ${key}`);
+                    if (!value || value === '') {
+                        console.log(`No value found for ${key} in CloudStorage or localStorage`);
                         return null;
                     }
                     
                     // Try to parse as JSON, if it fails return as string
                     try {
                         const parsed = JSON.parse(value);
-                        console.log(`Parsed ${key} as JSON:`, parsed);
+                        console.log(`Parsed ${key} as JSON (from ${fromCloudStorage ? 'CloudStorage' : 'localStorage'}):`, Array.isArray(parsed) ? `Array with ${parsed.length} items` : typeof parsed);
                         return parsed;
                     } catch (e) {
                         // If parsing fails, return the string value as-is
-                        console.log(`Could not parse ${key} as JSON, returning as string`);
+                        console.log(`Could not parse ${key} as JSON, returning as string (from ${fromCloudStorage ? 'CloudStorage' : 'localStorage'})`);
                         return value;
                     }
                 } catch (error) {
@@ -596,13 +602,17 @@
                     // Final fallback to localStorage
                     try {
                         const value = localStorage.getItem(key);
-                        if (!value) return null;
+                        if (!value || value === '') return null;
                         try {
-                            return JSON.parse(value);
+                            const parsed = JSON.parse(value);
+                            console.log(`Loaded ${key} from localStorage (final fallback, parsed)`);
+                            return parsed;
                         } catch (e) {
+                            console.log(`Loaded ${key} from localStorage (final fallback, as string)`);
                             return value;
                         }
                     } catch (e) {
+                        console.error(`Failed to load ${key} from localStorage fallback:`, e);
                         return null;
                     }
                 }
