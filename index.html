@@ -1584,6 +1584,12 @@
                 document.getElementById('grocery-list').style.display = 'block';
             }
             
+            // Restore grocery list if it exists (even if there's no plan)
+            if (groceryList && Array.isArray(groceryList) && groceryList.length > 0) {
+                console.log('Restoring saved grocery list on page load');
+                await renderGroceryList();
+            }
+            
             // Validate weeklyPlan is an array
             if (!weeklyPlan || !Array.isArray(weeklyPlan) || weeklyPlan.length === 0) {
                 return; // No valid plan to restore
