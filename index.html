@@ -921,11 +921,14 @@
             const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
             if (!weeklyPlan || !Array.isArray(weeklyPlan) || weeklyPlan.length === 0) {
                 console.log('No weekly plan found or invalid format');
+                console.log('weeklyPlan value:', weeklyPlan);
+                console.log('weeklyPlan type:', typeof weeklyPlan);
                 return [];
             }
 
             try {
-                console.log('Generating grocery list from plan:', weeklyPlan);
+                console.log('=== GENERATING GROCERY LIST ===');
+                console.log('Weekly plan:', JSON.stringify(weeklyPlan, null, 2));
                 console.log('Available INGREDIENTS keys:', Object.keys(INGREDIENTS));
                 
                 // Aggregate ingredients (port logic from Python)
@@ -933,11 +936,18 @@
                 
                 // Flatten all meals from weekly plan - use originalMealName if available
                 const allMeals = [];
-                weeklyPlan.forEach(day => {
+                weeklyPlan.forEach((day, dayIndex) => {
+                    console.log(`Day ${dayIndex}:`, day);
+                    
                     // Use originalMealName for ingredient matching (falls back to title)
                     const breakfastName = day.breakfast?.originalMealName || day.breakfast?.title || '';
                     const lunchName = day.lunch?.originalMealName || day.lunch?.title || '';
                     const dinnerName = day.dinner?.originalMealName || day.dinner?.title || '';
+                    
+                    console.log(`  Breakfast: "${breakfastName}" (originalMealName: ${day.breakfast?.originalMealName}, title: ${day.breakfast?.title})`);
+                    console.log(`  Lunch: "${lunchName}" (originalMealName: ${day.lunch?.originalMealName}, title: ${day.lunch?.title})`);
+                    console.log(`  Dinner: "${dinnerName}" (originalMealName: ${day.dinner?.originalMealName}, title: ${day.dinner?.title})`);
+                    
                     if (breakfastName) allMeals.push(breakfastName);
                     if (lunchName) allMeals.push(lunchName);
                     if (dinnerName) allMeals.push(dinnerName);
@@ -949,8 +959,10 @@
                 // Aggregate ingredients
                 let matchedCount = 0;
                 allMeals.forEach(mealName => {
+                    // Try exact match first
                     if (INGREDIENTS[mealName]) {
                         matchedCount++;
+                        console.log(`✓ Found ingredients for "${mealName}"`);
                         INGREDIENTS[mealName].forEach(([item, qty, unit]) => {
                             const key = `${item}_${unit}`;
                             if (!aggregated[key]) {
@@ -959,7 +971,23 @@
                             aggregated[key].qty += qty;
                         });
                     } else {
-                        console.log(`No ingredients found for: "${mealName}"`);
+                        // Try case-insensitive match
+                        const matchingKey = Object.keys(INGREDIENTS).find(key => 
+                            key.toLowerCase() === mealName.toLowerCase()
+                        );
+                        if (matchingKey) {
+                            matchedCount++;
+                            console.log(`✓ Found ingredients for "${mealName}" (matched "${matchingKey}")`);
+                            INGREDIENTS[matchingKey].forEach(([item, qty, unit]) => {
+                                const key = `${item}_${unit}`;
+                                if (!aggregated[key]) {
+                                    aggregated[key] = { item, qty: 0, unit };
+                                }
+                                aggregated[key].qty += qty;
+                            });
+                        } else {
+                            console.log(`✗ No ingredients found for: "${mealName}"`);
+                        }
                     }
                 });
 
@@ -977,6 +1005,8 @@
                 }));
                 
                 console.log('Final grocery list items:', result);
+                console.log('Final grocery list count:', result.length);
+                console.log('=== END GROCERY LIST GENERATION ===');
                 return result;
             } catch (error) {
                 console.error('Error generating grocery list:', error);
