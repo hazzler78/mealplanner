@@ -424,16 +424,6 @@
         <div id="grocery-output"></div>
     </div>
 
-    <!-- Debug Panel (toggle with button) -->
-    <div id="debug-panel" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #000; color: #0f0; padding: 10px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; z-index: 10000; border-top: 2px solid #0f0;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-            <strong>Debug Console</strong>
-            <button id="debug-close" style="background: #f00; color: #fff; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px;">Close</button>
-        </div>
-        <div id="debug-content" style="white-space: pre-wrap; word-wrap: break-word;"></div>
-    </div>
-    <button id="debug-toggle" style="position: fixed; bottom: 10px; right: 10px; background: #0088cc; color: #fff; border: none; padding: 8px 12px; border-radius: 50%; cursor: pointer; z-index: 9999; font-size: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">🔍</button>
-
     <!-- Recipe Modal -->
     <div id="recipe-modal" class="recipe-modal">
         <div class="recipe-modal-content">
@@ -1688,84 +1678,6 @@
             }
         }
         
-        // Log environment info for debugging
-        console.log('Environment:', {
-            isTelegram: isTelegram,
-            hasWebApp: !!WebApp,
-            userAgent: navigator.userAgent,
-            platform: navigator.platform
-        });
-
-        // Debug panel functionality
-        const debugPanel = document.getElementById('debug-panel');
-        const debugContent = document.getElementById('debug-content');
-        const debugToggle = document.getElementById('debug-toggle');
-        const debugClose = document.getElementById('debug-close');
-        
-        // Override console.log to also display in debug panel
-        const originalLog = console.log;
-        const originalError = console.error;
-        const originalWarn = console.warn;
-        
-        function addToDebugPanel(type, ...args) {
-            if (!debugContent) return;
-            
-            const timestamp = new Date().toLocaleTimeString();
-            const message = args.map(arg => {
-                if (typeof arg === 'object') {
-                    try {
-                        return JSON.stringify(arg, null, 2);
-                    } catch (e) {
-                        return String(arg);
-                    }
-                }
-                return String(arg);
-            }).join(' ');
-            
-            const color = type === 'error' ? '#f00' : type === 'warn' ? '#ff0' : '#0f0';
-            debugContent.innerHTML += `<div style="color: ${color};">[${timestamp}] ${message}</div>`;
-            debugContent.scrollTop = debugContent.scrollHeight;
-            
-            // Keep only last 100 lines
-            const lines = debugContent.innerHTML.split('</div>');
-            if (lines.length > 100) {
-                debugContent.innerHTML = lines.slice(-100).join('</div>') + '</div>';
-            }
-        }
-        
-        console.log = function(...args) {
-            originalLog.apply(console, args);
-            addToDebugPanel('log', ...args);
-        };
-        
-        console.error = function(...args) {
-            originalError.apply(console, args);
-            addToDebugPanel('error', ...args);
-        };
-        
-        console.warn = function(...args) {
-            originalWarn.apply(console, args);
-            addToDebugPanel('warn', ...args);
-        };
-        
-        // Toggle debug panel
-        if (debugToggle) {
-            debugToggle.addEventListener('click', () => {
-                if (debugPanel) {
-                    debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
-                }
-            });
-        }
-        
-        if (debugClose) {
-            debugClose.addEventListener('click', () => {
-                if (debugPanel) {
-                    debugPanel.style.display = 'none';
-                }
-            });
-        }
-        
-        console.log('Debug panel initialized');
     </script>
 </body>
 </html>
