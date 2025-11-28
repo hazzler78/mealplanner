@@ -1319,16 +1319,24 @@
         function attachDirectListeners() {
             console.log('Attaching direct listeners to grocery elements...');
             
-            // Attach to all checkboxes - use a data attribute to track if listener is attached
-            document.querySelectorAll('.grocery-checkbox').forEach(checkbox => {
-                // Skip if listener already attached
-                if (checkbox.dataset.listenerAttached === 'true') {
-                    return;
-                }
+            // Attach to all checkboxes - scope to grocery-output
+            const groceryOutput = document.getElementById('grocery-output');
+            if (!groceryOutput) {
+                console.warn('grocery-output not found');
+                return;
+            }
+            
+            groceryOutput.querySelectorAll('.grocery-checkbox').forEach((checkbox, index) => {
+                // Clone to remove old listeners, preserve checked state
+                const wasChecked = checkbox.checked;
+                const itemId = checkbox.closest('.grocery-item')?.dataset.id;
+                const newCheckbox = checkbox.cloneNode(true);
+                newCheckbox.checked = wasChecked;
+                checkbox.parentNode.replaceChild(newCheckbox, checkbox);
                 
-                checkbox.dataset.listenerAttached = 'true';
+                console.log(`Attaching checkbox ${index} for item: ${itemId}`);
                 
-                checkbox.addEventListener('change', async function(e) {
+                newCheckbox.addEventListener('change', async function(e) {
                     e.stopPropagation();
                     const itemId = this.closest('.grocery-item')?.dataset.id;
                     console.log('Direct checkbox changed for item:', itemId, 'checked:', this.checked);
