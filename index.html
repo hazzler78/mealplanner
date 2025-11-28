@@ -960,6 +960,10 @@
                 await CloudStorage.setItem('weeklyPlan', weeklyPlan);
                 await CloudStorage.setItem('preference', preference);
                 
+                // Clear grocery list when new plan is generated so it can be regenerated fresh
+                await CloudStorage.removeItem('groceryList');
+                console.log('Cleared grocery list for new plan');
+                
                 // Note: restoreWeeklyPlan is called on page load, not here
                 // The plan is already displayed above, so no need to restore
                 
@@ -1075,11 +1079,13 @@
         async function loadGroceryList() {
             const saved = await CloudStorage.getItem('groceryList');
             console.log('Loaded saved grocery list:', saved);
-            if (saved && Array.isArray(saved) && saved.length > 0) {
+            // If there's a saved list (even if empty array), return it
+            // Empty array means user cleared the list, so don't regenerate
+            if (saved !== null && saved !== undefined && Array.isArray(saved)) {
                 console.log('Returning saved grocery list with', saved.length, 'items');
                 return saved;
             }
-            // Generate from meal plan if no saved list
+            // Only generate from meal plan if no saved list exists at all (null/undefined)
             console.log('No saved list, generating from plan...');
             const planItems = await generateGroceryListFromPlan();
             console.log('Generated plan items:', planItems);
@@ -1504,50 +1510,41 @@
             console.log('Grocery list button clicked');
             
             // Show loading state
-            groceryOutput.innerHTML = '<div class="loading">Generating grocery list...</div>';
+            groceryOutput.innerHTML = '<div class="loading">Loading grocery list...</div>';
             groceryBtn.disabled = true;
             
             try {
-                // Check if there's a weekly plan
-                const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
-                console.log('Weekly plan from storage:', weeklyPlan);
+                // Check if there's already a saved grocery list (even if empty)
+                const savedList = await CloudStorage.getItem('groceryList');
+                const hasSavedList = savedList !== null && savedList !== undefined;
                 
-                if (weeklyPlan && Array.isArray(weeklyPlan) && weeklyPlan.length > 0) {
-                    console.log('Generating grocery list from plan...');
-                    // Generate fresh list from plan (merge with existing manual items)
-                    const planItems = await generateGroceryListFromPlan();
-                    console.log('Plan items generated:', planItems);
-                    console.log('Plan items count:', planItems.length);
+                console.log('Has saved grocery list:', hasSavedList);
+                console.log('Saved list:', savedList);
+                
+                // Only regenerate from plan if there's NO saved list at all
+                if (!hasSavedList) {
+                    // Check if there's a weekly plan to generate from
+                    const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
+                    console.log('Weekly plan from storage:', weeklyPlan);
                     
-                    const existingItems = await loadGroceryList();
-                    console.log('Existing items:', existingItems);
-                    console.log('Existing items count:', existingItems?.length || 0);
-                    
-                    // Keep manual items (those not from plan)
-                    const manualItems = Array.isArray(existingItems) 
-                        ? existingItems.filter(item => !item.id.startsWith('plan_'))
-                        : [];
-                    
-                    console.log('Manual items:', manualItems);
-                    console.log('Manual items count:', manualItems.length);
-                    
-                    // Merge: plan items + manual items
-                    const mergedItems = [...planItems, ...manualItems];
-                    console.log('Merged items:', mergedItems);
-                    console.log('Merged items count:', mergedItems.length);
-                    
-                    await saveGroceryList(mergedItems);
-                    console.log('Saved grocery list');
-                    
-                    // Verify it was saved
-                    const verifySaved = await CloudStorage.getItem('groceryList');
-                    console.log('Verified saved list:', verifySaved);
-                    console.log('Verified saved list count:', verifySaved?.length || 0);
+                    if (weeklyPlan && Array.isArray(weeklyPlan) && weeklyPlan.length > 0) {
+                        console.log('Generating grocery list from plan...');
+                        // Generate fresh list from plan
+                        const planItems = await generateGroceryListFromPlan();
+                        console.log('Plan items generated:', planItems);
+                        console.log('Plan items count:', planItems.length);
+                        
+                        await saveGroceryList(planItems);
+                        console.log('Saved grocery list from plan');
+                    } else {
+                        console.log('No weekly plan found, starting with empty list');
+                        await saveGroceryList([]);
+                    }
                 } else {
-                    console.log('No weekly plan found, loading existing grocery list');
+                    console.log('Using existing saved grocery list');
                 }
                 
-                // Always render the grocery list (even if no plan exists, show manual items)
+                // Render the grocery list
                 console.log('About to render grocery list...');
                 await renderGroceryList();
                 console.log('Grocery list rendered');
