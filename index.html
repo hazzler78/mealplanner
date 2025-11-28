@@ -556,14 +556,29 @@
                     if (isAvailable) {
                         try {
                             value = await WebApp.CloudStorage.getItem(key);
+                            
+                            // Handle case where CloudStorage returns an object (Telegram API quirk)
+                            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                                // If it's an object, try to extract the value using the key
+                                if (key in value) {
+                                    value = value[key];
+                                    console.log(`Extracted ${key} from CloudStorage object result`);
+                                } else {
+                                    console.log(`CloudStorage returned object without key ${key}, trying localStorage`);
+                                    value = null;
+                                }
+                            }
+                            
                             // Handle empty string, null, or undefined response (indicates data was too large or not saved)
                             if (!value || value === '' || value === null || value === undefined) {
                                 console.log(`CloudStorage returned empty/null for ${key}, trying localStorage`);
                                 value = null; // Will fall through to localStorage
-                            } else {
-                                const valueLength = typeof value === 'string' ? value.length : 'N/A';
-                                console.log(`Loaded ${key} from CloudStorage (length: ${valueLength})`);
+                            } else if (typeof value === 'string') {
+                                console.log(`Loaded ${key} from CloudStorage (length: ${value.length})`);
                                 fromCloudStorage = true;
+                            } else {
+                                console.log(`CloudStorage returned non-string value for ${key} (type: ${typeof value}), trying localStorage`);
+                                value = null; // Will fall through to localStorage
                             }
                         } catch (cloudError) {
                             console.log(`CloudStorage error for ${key}, using localStorage:`, cloudError.message);
