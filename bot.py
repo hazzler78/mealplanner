@@ -284,18 +284,62 @@ async def post_init(application) -> None:
     await set_menu_button(application.bot)
 
 
+async def checkmenu(update: Update, context: CallbackContext) -> None:
+    """Command to check current menu button status."""
+    try:
+        current_button = await context.bot.get_chat_menu_button(chat_id=None)
+        button_info = f"Type: {type(current_button).__name__}\n"
+        if hasattr(current_button, 'text'):
+            button_info += f"Text: {current_button.text}\n"
+        if hasattr(current_button, 'web_app') and current_button.web_app:
+            button_info += f"WebApp URL: {current_button.web_app.url}\n"
+        await update.message.reply_text(f"Current menu button:\n{button_info}")
+    except Exception as e:
+        await update.message.reply_text(f"Error checking menu button: {e}\n\nType: {type(e).__name__}")
+
+
 async def setmenu(update: Update, context: CallbackContext) -> None:
     """Command to manually set the menu button (for testing)."""
     if update.effective_user.id != update.effective_chat.id:
         await update.message.reply_text("This command can only be used in private chat.")
         return
     
-    await update.message.reply_text("Setting menu button...")
+    if not WEBAPP_URL:
+        await update.message.reply_text(
+            f"❌ TELEGRAM_WEBAPP_URL is not set!\n\n"
+            f"Please set it in your .env file:\n"
+            f"TELEGRAM_WEBAPP_URL=https://mealplanner-wheat.vercel.app"
+        )
+        return
+    
+    await update.message.reply_text(f"Setting menu button with URL: {WEBAPP_URL}\n\nPlease wait...")
     success = await set_menu_button(context.bot)
     if success:
-        await update.message.reply_text(f"✅ Menu button set successfully!\n\nURL: {WEBAPP_URL}\n\nNote: It may take a few moments for the button to appear in your bot profile. Try refreshing the profile page.")
+        await update.message.reply_text(
+            f"✅ Menu button API call succeeded!\n\n"
+            f"URL: {WEBAPP_URL}\n\n"
+            f"⚠️ IMPORTANT: If you still don't see the button:\n"
+            f"1. The WebApp must be registered with BotFather first\n"
+            f"2. Send /newapp to @BotFather and register your WebApp\n"
+            f"3. Then try /setmenu again\n\n"
+            f"Or set it manually:\n"
+            f"1. Go to @BotFather\n"
+            f"2. Send /mybots\n"
+            f"3. Select your bot\n"
+            f"4. Choose 'Bot Settings' → 'Menu Button'\n"
+            f"5. Set URL to: {WEBAPP_URL}"
+        )
     else:
-        await update.message.reply_text(f"❌ Failed to set menu button. Check bot logs for details.\n\nCurrent URL: {WEBAPP_URL if WEBAPP_URL else 'Not set'}")
+        await update.message.reply_text(
+            f"❌ Failed to set menu button. Check bot logs for details.\n\n"
+            f"Current URL: {WEBAPP_URL}\n\n"
+            f"Try setting it manually via BotFather:\n"
+            f"1. Go to @BotFather\n"
+            f"2. Send /mybots\n"
+            f"3. Select your bot\n"
+            f"4. Choose 'Bot Settings' → 'Menu Button'\n"
+            f"5. Set URL to: {WEBAPP_URL}"
+        )
 
 
 def main() -> None:
@@ -309,6 +353,7 @@ def main() -> None:
     application.add_handler(CommandHandler("plan_week", plan_week))
     application.add_handler(CommandHandler("grocery_list", grocery_list))
     application.add_handler(CommandHandler("setmenu", setmenu))  # Manual menu button setup command
+    application.add_handler(CommandHandler("checkmenu", checkmenu))  # Check current menu button status
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_preference))
     
     logging.info("Bot is starting...")
