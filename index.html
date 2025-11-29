@@ -808,6 +808,13 @@
         async function addCustomRecipe(recipe) {
             const { name, mealType, diet, ingredients, instructions, imageUrl } = recipe;
             
+            // Validate input
+            if (!name || !name.trim()) {
+                throw new Error('Recipe name is required');
+            }
+            
+            const trimmedName = name.trim();
+            
             // Initialize structure if needed
             if (!customRecipes[diet]) {
                 customRecipes[diet] = {};
@@ -816,33 +823,62 @@
                 customRecipes[diet][mealType] = [];
             }
             
-            // Add to custom recipes list
-            if (!customRecipes[diet][mealType].includes(name)) {
-                customRecipes[diet][mealType].push(name);
+            // Check if recipe with same name already exists (update it if it does)
+            const existingIndex = customRecipes[diet][mealType].indexOf(trimmedName);
+            if (existingIndex === -1) {
+                customRecipes[diet][mealType].push(trimmedName);
             }
+            // If it exists, we'll update the recipe data below
             
             // Format ingredients for display (convert to string format like "2 cups Chicken")
+            // Improved parsing to handle various formats: "2 cups", "200g", "1", "Chicken 200g", etc.
             const formattedIngredients = ingredients.map(ing => {
                 const ingStr = ing.trim();
-                if (!ingStr) return '';
+                if (!ingStr) return null;
                 
-                // Try to parse and reformat
-                const match = ingStr.match(/^(\d+(?:\.\d+)?)\s*(\w+)?\s*(.+)$/);
+                // Try multiple patterns:
+                // Pattern 1: "2 cups Chicken" or "200g Chicken"
+                let match = ingStr.match(/^(\d+(?:\.\d+)?)\s+(\w+)\s+(.+)$/);
                 if (match) {
                     const qty = parseFloat(match[1]) || 1;
-                    const unit = match[2] || '';
-                    const item = match[3].trim() || match[2] || ingStr;
-                    return unit ? `${qty} ${unit} ${item}` : `${qty} ${item}`;
+                    const unit = match[2];
+                    const item = match[3].trim();
+                    return `${qty} ${unit} ${item}`;
                 }
+                
+                // Pattern 2: "Chicken 200g" or "Chicken 2 cups"
+                match = ingStr.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s+(\w+)$/);
+                if (match) {
+                    const item = match[1].trim();
+                    const qty = parseFloat(match[2]) || 1;
+                    const unit = match[3];
+                    return `${qty} ${unit} ${item}`;
+                }
+                
+                // Pattern 3: "200g" or "2 cups" (just quantity and unit, no item name)
+                match = ingStr.match(/^(\d+(?:\.\d+)?)\s*(\w+)$/);
+                if (match) {
+                    const qty = parseFloat(match[1]) || 1;
+                    const unit = match[2];
+                    return `${qty} ${unit}`;
+                }
+                
+                // Pattern 4: Just a number (assume quantity 1)
+                match = ingStr.match(/^(\d+(?:\.\d+)?)$/);
+                if (match) {
+                    return ingStr;
+                }
+                
+                // Default: return as-is
                 return ingStr;
-            }).filter(ing => ing.length > 0);
+            }).filter(ing => ing !== null && ing.length > 0);
             
-            // Store full recipe data
-            customRecipeData[name] = {
-                title: name,
-                originalMealName: name,
+            // Store full recipe data (update if exists)
+            customRecipeData[trimmedName] = {
+                title: trimmedName,
+                originalMealName: trimmedName,
                 image: imageUrl || '',
-                instructions: instructions || `Prepare ${name} according to your preference.`,
+                instructions: instructions || `Prepare ${trimmedName} according to your preference.`,
                 ingredients: formattedIngredients,
                 readyInMinutes: null,
                 servings: null,
@@ -857,8 +893,17 @@
             mergeCustomIngredients();
         }
 
-        // Load custom recipes on page load
-        loadCustomRecipes();
+        // Load custom recipes on page load (wait for DOM to be ready)
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                loadCustomRecipes();
+            });
+        } else {
+            // DOM already loaded, but wait a bit for CloudStorage to be ready
+            setTimeout(() => {
+                loadCustomRecipes();
+            }, 100);
+        }
 
         // Helper function to shuffle array
         function shuffleArray(array) {
@@ -1243,9 +1288,9 @@
                 console.log('Aggregated ingredients:', aggregated);
                 console.log('Number of unique ingredients:', Object.keys(aggregated).length);
 
-                // Convert to array format with IDs
-                const result = Object.values(aggregated).map(({ item, qty, unit }, index) => ({
-                    id: `plan_${item}_${unit}_${index}`,
+                // Convert to array format with IDs (use unique IDs to avoid conflicts)
+                const result = Object.values(aggregated).map(({ item, qty, unit }) => ({
+                    id: `plan_${item}_${unit}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                     item,
                     qty,
                     unit,
@@ -1698,38 +1743,44 @@
             console.log('Grocery list button clicked');
             
             // Show loading state
-            groceryOutput.innerHTML = '<div class="loading">Loading grocery list...</div>';
+            groceryOutput.innerHTML = '<div class="loading">Generating grocery list...</div>';
             groceryBtn.disabled = true;
             
             try {
-                // Check if there's already a saved grocery list (even if empty)
+                // Check if there's a weekly plan to generate from
+                const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
                 const savedList = await CloudStorage.getItem('groceryList');
-                const hasSavedList = savedList !== null && savedList !== undefined;
+                const hasSavedList = savedList !== null && savedList !== undefined && Array.isArray(savedList);
                 
+                console.log('Weekly plan exists:', !!weeklyPlan);
                 console.log('Has saved grocery list:', hasSavedList);
-                console.log('Saved list:', savedList);
+                console.log('Saved list length:', savedList?.length || 0);
                 
-                // Only regenerate from plan if there's NO saved list at all
-                if (!hasSavedList) {
-                    // Check if there's a weekly plan to generate from
-                    const weeklyPlan = await CloudStorage.getItem('weeklyPlan');
-                    console.log('Weekly plan from storage:', weeklyPlan);
+                // If there's a weekly plan, always generate from it (user wants shopping list for their plan)
+                if (weeklyPlan && Array.isArray(weeklyPlan) && weeklyPlan.length > 0) {
+                    console.log('Generating grocery list from weekly plan...');
+                    // Generate fresh list from plan
+                    const planItems = await generateGroceryListFromPlan();
+                    console.log('Plan items generated:', planItems);
+                    console.log('Plan items count:', planItems.length);
                     
-                    if (weeklyPlan && Array.isArray(weeklyPlan) && weeklyPlan.length > 0) {
-                        console.log('Generating grocery list from plan...');
-                        // Generate fresh list from plan
-                        const planItems = await generateGroceryListFromPlan();
-                        console.log('Plan items generated:', planItems);
-                        console.log('Plan items count:', planItems.length);
-                        
-                        await saveGroceryList(planItems);
-                        console.log('Saved grocery list from plan');
+                    // Merge with any existing manual items (items user added manually)
+                    if (hasSavedList && savedList.length > 0) {
+                        const manualItems = savedList.filter(item => !item.id.startsWith('plan_'));
+                        console.log('Keeping', manualItems.length, 'manual items');
+                        const mergedItems = [...planItems, ...manualItems];
+                        await saveGroceryList(mergedItems);
                     } else {
-                        console.log('No weekly plan found, starting with empty list');
-                        await saveGroceryList([]);
+                        await saveGroceryList(planItems);
                     }
+                    console.log('Saved grocery list from plan');
+                } else if (hasSavedList) {
+                    // No plan but have saved list - use it
+                    console.log('No plan found, using existing saved grocery list');
                 } else {
-                    console.log('Using existing saved grocery list');
+                    // No plan and no saved list - start empty
+                    console.log('No plan found and no saved list, starting with empty list');
+                    await saveGroceryList([]);
                 }
                 
                 // Render the grocery list
@@ -1759,7 +1810,7 @@
                 document.getElementById('grocery-list').style.display = 'block';
             }
             
-            // Restore grocery list if it exists (even if there's no plan)
+            // Restore grocery list if it exists and has items (don't restore empty lists)
             if (groceryList && Array.isArray(groceryList) && groceryList.length > 0) {
                 console.log('Restoring saved grocery list on page load');
                 await renderGroceryList();
@@ -1898,6 +1949,12 @@
 
             if (!name) {
                 alert('Please enter a recipe name');
+                return;
+            }
+            
+            // Validate that at least ingredients or instructions are provided
+            if (!ingredientsText && !instructions) {
+                alert('Please provide at least ingredients or instructions for the recipe');
                 return;
             }
 
