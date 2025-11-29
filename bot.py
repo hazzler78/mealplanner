@@ -13,7 +13,8 @@ load_dotenv()
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE')
 
 # Get WebApp URL from environment variable (e.g., your Vercel deployment URL)
-WEBAPP_URL = os.getenv('TELEGRAM_WEBAPP_URL', '')
+# Strip trailing slash if present
+WEBAPP_URL = os.getenv('TELEGRAM_WEBAPP_URL', '').rstrip('/')
 
 
 
@@ -255,21 +256,46 @@ async def grocery_list(update: Update, context: CallbackContext) -> None:
 
 
 
+async def set_menu_button(bot) -> bool:
+    """Helper function to set the menu button."""
+    if not WEBAPP_URL:
+        logging.warning("TELEGRAM_WEBAPP_URL not set. Menu button will not be configured.")
+        return False
+    
+    try:
+        menu_button = MenuButtonWebApp(
+            text="Open Meal Planner",
+            web_app=WebAppInfo(url=WEBAPP_URL)
+        )
+        # Set menu button for the bot (chat_id=None sets default menu button)
+        await bot.set_chat_menu_button(chat_id=None, menu_button=menu_button)
+        logging.info(f"Menu button set successfully with URL: {WEBAPP_URL}")
+        return True
+    except Exception as e:
+        logging.error(f"Failed to set menu button: {e}")
+        logging.error(f"Error type: {type(e).__name__}")
+        import traceback
+        logging.error(traceback.format_exc())
+        return False
+
+
 async def post_init(application) -> None:
     """Set up the menu button after bot initialization."""
-    if WEBAPP_URL:
-        try:
-            menu_button = MenuButtonWebApp(
-                text="Open Meal Planner",
-                web_app=WebAppInfo(url=WEBAPP_URL)
-            )
-            # Set menu button for the bot (chat_id=None sets default menu button)
-            await application.bot.set_chat_menu_button(chat_id=None, menu_button=menu_button)
-            logging.info(f"Menu button set successfully with URL: {WEBAPP_URL}")
-        except Exception as e:
-            logging.warning(f"Failed to set menu button: {e}. You can set it manually via BotFather.")
+    await set_menu_button(application.bot)
+
+
+async def setmenu(update: Update, context: CallbackContext) -> None:
+    """Command to manually set the menu button (for testing)."""
+    if update.effective_user.id != update.effective_chat.id:
+        await update.message.reply_text("This command can only be used in private chat.")
+        return
+    
+    await update.message.reply_text("Setting menu button...")
+    success = await set_menu_button(context.bot)
+    if success:
+        await update.message.reply_text(f"✅ Menu button set successfully!\n\nURL: {WEBAPP_URL}\n\nNote: It may take a few moments for the button to appear in your bot profile. Try refreshing the profile page.")
     else:
-        logging.warning("TELEGRAM_WEBAPP_URL not set. Menu button will not be configured. Set it in your .env file or environment variables.")
+        await update.message.reply_text(f"❌ Failed to set menu button. Check bot logs for details.\n\nCurrent URL: {WEBAPP_URL if WEBAPP_URL else 'Not set'}")
 
 
 def main() -> None:
@@ -282,6 +308,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("plan_week", plan_week))
     application.add_handler(CommandHandler("grocery_list", grocery_list))
+    application.add_handler(CommandHandler("setmenu", setmenu))  # Manual menu button setup command
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_preference))
     
     logging.info("Bot is starting...")
