@@ -22,7 +22,23 @@ Your app will be available at: `https://your-project-name.vercel.app`
 
 ## 3. Configure Telegram Bot
 
-### Option A: Using BotFather (Recommended)
+### Option A: Automatic Menu Button Setup (Recommended - Programmatic)
+
+The bot code now automatically sets up the menu button when it starts! Just add your WebApp URL to your environment variables:
+
+1. Create a `.env` file in your project root (or set environment variables):
+   ```
+   TELEGRAM_BOT_TOKEN=your_bot_token_here
+   TELEGRAM_WEBAPP_URL=https://your-project-name.vercel.app
+   ```
+
+2. When you run the bot, it will automatically configure the menu button
+3. The button will appear in your bot's profile page (bottom left corner)
+4. Users can click it to open your WebApp directly
+
+**Note:** Make sure your WebApp URL is accessible and deployed before setting this up.
+
+### Option B: Using BotFather (Manual Setup)
 
 1. Open Telegram and search for [@BotFather](https://t.me/BotFather)
 2. Send `/newbot` and follow instructions to create a bot (if you haven't already)
@@ -35,7 +51,7 @@ Your app will be available at: `https://your-project-name.vercel.app`
 6. Follow the prompts to complete setup
 7. BotFather will give you a button link - you can use this to test!
 
-### Option B: Using Bot Settings
+### Option C: Using Bot Settings (Manual Menu Button)
 
 1. Go to [@BotFather](https://t.me/BotFather)
 2. Send `/mybots`
