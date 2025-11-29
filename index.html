@@ -1227,64 +1227,132 @@
                 // Aggregate ingredients (port logic from Python)
                 const aggregated = {};
                 
-                // Flatten all meals from weekly plan - use originalMealName if available
-                const allMeals = [];
+                // Helper function to parse ingredient string and extract item, quantity, and unit
+                function parseIngredient(ingStr) {
+                    if (!ingStr || typeof ingStr !== 'string') return null;
+                    
+                    const trimmed = ingStr.trim();
+                    if (!trimmed) return null;
+                    
+                    // Try to parse formats like "2 cups Chicken", "200g Salmon", "1 Onion", etc.
+                    // Pattern 1: "2 cups Chicken" or "200g Chicken"
+                    let match = trimmed.match(/^(\d+(?:\.\d+)?)\s+(\w+)\s+(.+)$/);
+                    if (match) {
+                        return {
+                            qty: parseFloat(match[1]) || 1,
+                            unit: match[2].trim(),
+                            item: match[3].trim()
+                        };
+                    }
+                    
+                    // Pattern 2: "Chicken 200g" or "Chicken 2 cups"
+                    match = trimmed.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s+(\w+)$/);
+                    if (match) {
+                        return {
+                            item: match[1].trim(),
+                            qty: parseFloat(match[2]) || 1,
+                            unit: match[3].trim()
+                        };
+                    }
+                    
+                    // Pattern 3: Just quantity and unit "200g" or "2 cups"
+                    match = trimmed.match(/^(\d+(?:\.\d+)?)\s*(\w+)$/);
+                    if (match) {
+                        return {
+                            item: '',
+                            qty: parseFloat(match[1]) || 1,
+                            unit: match[2].trim()
+                        };
+                    }
+                    
+                    // Pattern 4: Just a number
+                    match = trimmed.match(/^(\d+(?:\.\d+)?)$/);
+                    if (match) {
+                        return {
+                            item: trimmed,
+                            qty: parseFloat(match[1]) || 1,
+                            unit: ''
+                        };
+                    }
+                    
+                    // Default: treat as item name only
+                    return {
+                        item: trimmed,
+                        qty: 1,
+                        unit: ''
+                    };
+                }
+                
+                // Process all meals from weekly plan
+                let processedCount = 0;
                 weeklyPlan.forEach((day, dayIndex) => {
                     console.log(`Day ${dayIndex}:`, day);
                     
-                    // Use originalMealName for ingredient matching (falls back to title)
-                    const breakfastName = day.breakfast?.originalMealName || day.breakfast?.title || '';
-                    const lunchName = day.lunch?.originalMealName || day.lunch?.title || '';
-                    const dinnerName = day.dinner?.originalMealName || day.dinner?.title || '';
-                    
-                    console.log(`  Breakfast: "${breakfastName}" (originalMealName: ${day.breakfast?.originalMealName}, title: ${day.breakfast?.title})`);
-                    console.log(`  Lunch: "${lunchName}" (originalMealName: ${day.lunch?.originalMealName}, title: ${day.lunch?.title})`);
-                    console.log(`  Dinner: "${dinnerName}" (originalMealName: ${day.dinner?.originalMealName}, title: ${day.dinner?.title})`);
-                    
-                    if (breakfastName) allMeals.push(breakfastName);
-                    if (lunchName) allMeals.push(lunchName);
-                    if (dinnerName) allMeals.push(dinnerName);
-                });
-
-                console.log('Meal names for ingredients:', allMeals);
-                console.log('Total meals to process:', allMeals.length);
-
-                // Aggregate ingredients
-                let matchedCount = 0;
-                allMeals.forEach(mealName => {
-                    // Try exact match first
-                    if (INGREDIENTS[mealName]) {
-                        matchedCount++;
-                        console.log(`✓ Found ingredients for "${mealName}"`);
-                        INGREDIENTS[mealName].forEach(([item, qty, unit]) => {
-                            const key = `${item}_${unit}`;
-                            if (!aggregated[key]) {
-                                aggregated[key] = { item, qty: 0, unit };
-                            }
-                            aggregated[key].qty += qty;
-                        });
-                    } else {
-                        // Try case-insensitive match
-                        const matchingKey = Object.keys(INGREDIENTS).find(key => 
-                            key.toLowerCase() === mealName.toLowerCase()
-                        );
-                        if (matchingKey) {
-                            matchedCount++;
-                            console.log(`✓ Found ingredients for "${mealName}" (matched "${matchingKey}")`);
-                            INGREDIENTS[matchingKey].forEach(([item, qty, unit]) => {
-                                const key = `${item}_${unit}`;
-                                if (!aggregated[key]) {
-                                    aggregated[key] = { item, qty: 0, unit };
+                    // Process each meal (breakfast, lunch, dinner)
+                    [day.breakfast, day.lunch, day.dinner].forEach((meal, mealIndex) => {
+                        if (!meal) return;
+                        
+                        const mealName = meal.originalMealName || meal.title || '';
+                        console.log(`  Processing meal ${mealIndex === 0 ? 'Breakfast' : mealIndex === 1 ? 'Lunch' : 'Dinner'}: "${mealName}"`);
+                        
+                        // First, try to use ingredients directly from recipe object (for API recipes)
+                        if (meal.ingredients && Array.isArray(meal.ingredients) && meal.ingredients.length > 0) {
+                            processedCount++;
+                            console.log(`  ✓ Using ingredients from recipe object (${meal.ingredients.length} items)`);
+                            
+                            meal.ingredients.forEach(ingStr => {
+                                const parsed = parseIngredient(ingStr);
+                                if (parsed && parsed.item) {
+                                    const key = `${parsed.item}_${parsed.unit}`;
+                                    if (!aggregated[key]) {
+                                        aggregated[key] = { item: parsed.item, qty: 0, unit: parsed.unit };
+                                    }
+                                    aggregated[key].qty += parsed.qty;
                                 }
-                                aggregated[key].qty += qty;
                             });
                         } else {
-                            console.log(`✗ No ingredients found for: "${mealName}"`);
+                            // Fallback: try to match meal name against INGREDIENTS object
+                            let found = false;
+                            
+                            // Try exact match first
+                            if (INGREDIENTS[mealName]) {
+                                found = true;
+                                processedCount++;
+                                console.log(`  ✓ Found ingredients in INGREDIENTS for "${mealName}"`);
+                                INGREDIENTS[mealName].forEach(([item, qty, unit]) => {
+                                    const key = `${item}_${unit}`;
+                                    if (!aggregated[key]) {
+                                        aggregated[key] = { item, qty: 0, unit };
+                                    }
+                                    aggregated[key].qty += qty;
+                                });
+                            } else {
+                                // Try case-insensitive match
+                                const matchingKey = Object.keys(INGREDIENTS).find(key => 
+                                    key.toLowerCase() === mealName.toLowerCase()
+                                );
+                                if (matchingKey) {
+                                    found = true;
+                                    processedCount++;
+                                    console.log(`  ✓ Found ingredients in INGREDIENTS for "${mealName}" (matched "${matchingKey}")`);
+                                    INGREDIENTS[matchingKey].forEach(([item, qty, unit]) => {
+                                        const key = `${item}_${unit}`;
+                                        if (!aggregated[key]) {
+                                            aggregated[key] = { item, qty: 0, unit };
+                                        }
+                                        aggregated[key].qty += qty;
+                                    });
+                                }
+                            }
+                            
+                            if (!found) {
+                                console.log(`  ✗ No ingredients found for: "${mealName}"`);
+                            }
                         }
-                    }
+                    });
                 });
 
-                console.log(`Matched ${matchedCount} out of ${allMeals.length} meals`);
+                console.log(`Processed ${processedCount} meals`);
                 console.log('Aggregated ingredients:', aggregated);
                 console.log('Number of unique ingredients:', Object.keys(aggregated).length);
 
