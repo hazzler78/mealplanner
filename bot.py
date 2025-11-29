@@ -1,6 +1,6 @@
 import logging
 import os
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, MenuButtonWebApp, WebAppInfo
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, MenuButtonWebApp, WebAppInfo, BotCommand
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackContext
 import random  # For dummy suggestions; replace with API calls
 from collections import defaultdict  # For aggregating groceries
@@ -280,8 +280,35 @@ async def set_menu_button(bot) -> bool:
 
 
 async def post_init(application) -> None:
-    """Set up the menu button after bot initialization."""
+    """Set up the menu button and register commands after bot initialization."""
+    # Register bot commands with Telegram
+    commands = [
+        BotCommand("start", "Start the bot and select diet preference"),
+        BotCommand("plan_week", "Generate a weekly meal plan"),
+        BotCommand("grocery_list", "Get your shopping list"),
+        BotCommand("help", "Show available commands"),
+    ]
+    try:
+        await application.bot.set_my_commands(commands)
+        logging.info("Bot commands registered successfully")
+    except Exception as e:
+        logging.warning(f"Failed to register commands: {e}")
+    
+    # Set up menu button
     await set_menu_button(application.bot)
+
+
+async def help_command(update: Update, context: CallbackContext) -> None:
+    """Show available commands."""
+    help_text = (
+        "🤖 <b>Meal Planner Bot Commands:</b>\n\n"
+        "/start - Start the bot and select your diet preference\n"
+        "/plan_week - Generate a weekly meal plan\n"
+        "/grocery_list - Get your shopping list\n"
+        "/help - Show this help message\n\n"
+        "💡 <b>Tip:</b> Use the menu button in the bot profile to open the WebApp!"
+    )
+    await update.message.reply_text(help_text, parse_mode='HTML')
 
 
 async def checkmenu(update: Update, context: CallbackContext) -> None:
@@ -352,8 +379,9 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("plan_week", plan_week))
     application.add_handler(CommandHandler("grocery_list", grocery_list))
-    application.add_handler(CommandHandler("setmenu", setmenu))  # Manual menu button setup command
-    application.add_handler(CommandHandler("checkmenu", checkmenu))  # Check current menu button status
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("setmenu", setmenu))  # Manual menu button setup command (admin)
+    application.add_handler(CommandHandler("checkmenu", checkmenu))  # Check current menu button status (admin)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_preference))
     
     logging.info("Bot is starting...")
